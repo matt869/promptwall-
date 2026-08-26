@@ -15,7 +15,7 @@ from typing import Any
 from pydantic import BaseModel, Field, field_validator
 from pydantic import ValidationError as PydanticValidationError
 
-from .constants import FailMode, Mode
+from .constants import FailMode, Mode, TrustLevel
 from .exceptions import ConfigError
 
 ENV_PREFIX = "PW_"
@@ -54,6 +54,18 @@ def _env_list(key: str, default: list[str] | None = None) -> list[str]:
     if raw is None or str(raw).strip() == "":
         return list(default or [])
     return [item.strip() for item in str(raw).split(",") if item.strip()]
+
+
+def _trust_from_env(key: str, default: TrustLevel) -> TrustLevel:
+    raw = _env(key)
+    if raw is None or str(raw).strip() == "":
+        return default
+    name = str(raw).strip().lower()
+    for level in TrustLevel:
+        if level.name.lower() == name:
+            return level
+    valid = ", ".join(lvl.name.lower() for lvl in TrustLevel)
+    raise ConfigError(f"{ENV_PREFIX}{key} must be one of: {valid}")
 
 
 def load_dotenv(path: str | Path = ".env", *, override: bool = False) -> int:
@@ -196,6 +208,21 @@ class Settings(BaseModel):
     rate_limit_burst: int = Field(default=40, gt=0)
     max_input_chars: int = Field(default=512_000, gt=0)
 
+    # Spotlighting: how untrusted content is fenced before the model sees it.
+    # datamark is the default because delimiters alone are only present at the
+    # edges of a span, while datamarking puts the boundary in every token.
+    spotlight_mode: str = "datamark"
+    #: Spans at or below this trust level get fenced.
+    spotlight_floor: TrustLevel = TrustLevel.THIRD_PARTY
+
+    @field_validator("spotlight_mode")
+    @classmethod
+    def _known_spotlight(cls, v: str) -> str:
+        allowed = {"none", "delimit", "datamark", "encode"}
+        if v not in allowed:
+            raise ValueError(f"spotlight_mode must be one of {sorted(allowed)}")
+        return v
+
     @field_validator("log_format")
     @classmethod
     def _known_format(cls, v: str) -> str:
@@ -296,6 +323,8 @@ def build_settings() -> Settings:
                 tracing_enabled=_env_bool("TRACING_ENABLED", False),
                 otlp_endpoint=_env("OTLP_ENDPOINT", "http://localhost:4318"),
             ),
+            spotlight_mode=_env("SPOTLIGHT_MODE", "datamark"),
+            spotlight_floor=_trust_from_env("SPOTLIGHT_FLOOR", TrustLevel.THIRD_PARTY),
             rate_limit_rps=_env_num("RATE_LIMIT_RPS", 20.0, float),
             rate_limit_burst=int(_env_num("RATE_LIMIT_BURST", 40, int)),
             max_input_chars=int(_env_num("MAX_INPUT_CHARS", 512_000, int)),

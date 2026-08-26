@@ -21,7 +21,7 @@ from ..constants import (
     Severity,
     TrustLevel,
 )
-from ..pipeline.verdict import Finding
+from ..findings import Finding
 from ..taint.labels import OffsetMap, TaintMap
 from .schema import (
     PolicyBundle,
