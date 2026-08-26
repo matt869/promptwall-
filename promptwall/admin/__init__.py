@@ -1,0 +1,1 @@
+"""PromptWall admin subpackage."""
