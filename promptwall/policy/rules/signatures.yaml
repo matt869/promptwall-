@@ -123,7 +123,7 @@ signatures:
     description: Instruction to transmit context to an external endpoint.
     family: exfiltration
     severity: critical
-    pattern: '(?:send|post|upload|transmit|forward|exfiltrate|report|submit|e-?mail|leak|share)\s+(?:the\s+|all\s+|your\s+|this\s+)?(?:conversation|history|data|content|context|secret|key|token|credential|password|result)s?\b[^.\n]{0,60}?\b(?:to|at|via)\s+(?:https?://|www\.|[\w.-]+\.[a-z]{2,})'
+    pattern: '(?:send|post|upload|transmit|forward|exfiltrate|report|submit|e-?mail|leak|share)\s+(?:\w+\s+){0,3}?(?:conversation|history|data|content|context|secret|key|token|credential|password|result)s?\b[^.\n]{0,60}?\b(?:to|at|via)\s+(?:https?://|www\.|[\w.-]+\.[a-z]{2,})'
     tags: [exfil]
 
   - id: exf.append_to_url
