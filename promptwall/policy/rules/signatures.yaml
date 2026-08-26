@@ -16,7 +16,11 @@ signatures:
     description: Classic instruction-override opener.
     family: instruction_override
     severity: high
-    pattern: '(?:ignore|disregard|forget|override)\s+(?:all\s+|any\s+|the\s+)?(?:previous|prior|above|earlier|preceding|foregoing|last)\s+(?:instruction|prompt|direction|rule|command|message|context)s?'
+    # 'above', 'preceding' and 'foregoing' stand alone as nouns, so the
+    # trailing noun is optional for them ("disregard the above and ...").
+    # It stays required for the adjective-only words, where dropping it
+    # would match ordinary prose like "ignore previous versions".
+    pattern: '(?:ignore|disregard|forget|override)\s+(?:all\s+|any\s+|the\s+)?(?:(?:previous|prior|earlier|last)\s+(?:instruction|prompt|direction|rule|command|message|context)s?|(?:above|preceding|foregoing)(?:\s+(?:instruction|prompt|direction|rule|command|message|context)s?)?)'
     tags: [classic, high-signal]
 
   - id: io.ignore_everything
@@ -123,7 +127,7 @@ signatures:
     description: Instruction to transmit context to an external endpoint.
     family: exfiltration
     severity: critical
-    pattern: '(?:send|post|upload|transmit|forward|exfiltrate|report|submit|e-?mail|leak|share)\s+(?:\w+\s+){0,3}?(?:conversation|history|data|content|context|secret|key|token|credential|password|result)s?\b[^.\n]{0,60}?\b(?:to|at|via)\s+(?:https?://|www\.|[\w.-]+\.[a-z]{2,})'
+    pattern: '(?:send|post|upload|transmit|forward|exfiltrate|report|submit|e-?mail|leak|share)\s+(?:\w+\s+){0,3}?(?:conversation|history|data|content|context|secret|key|token|credential|password|result|everything|file|document|record|message|transcript|log)s?\b[^.\n]{0,60}?\b(?:to|at|via)\s+(?:https?://|www\.|[\w.-]+\.[a-z]{2,})'
     tags: [exfil]
 
   - id: exf.append_to_url

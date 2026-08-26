@@ -278,7 +278,11 @@ class PolicyEngine:
                         end=end,
                         trust=taint.min_trust(start, end) if taint else TrustLevel.UNTRUSTED,
                         confidence=1.0,
-                        weight=rule.severity and 0.0 or 0.0,
+                        # Zero: the value has already been removed from the
+                        # text, so the response is safe. Recording it matters
+                        # for audit and session risk; raising the score would
+                        # block a response we just made harmless.
+                        weight=0.0,
                         meta={"mode": rule.mode.value},
                     )
                 )

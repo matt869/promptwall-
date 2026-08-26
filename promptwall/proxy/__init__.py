@@ -1,7 +1,10 @@
 """The proxy: provider adapters, upstream client and the guarded endpoints."""
 
 from .providers import PROVIDERS, Provider, get_provider
-from .router import router
+# Aliased: a bare `from .router import router` would rebind the package
+# attribute `router` from the MODULE to the APIRouter object, so
+# `promptwall.proxy.router` would no longer resolve to the module.
+from .router import router as proxy_router
 from .schemas import (
     AnthropicRequest,
     BlockedResponse,
@@ -26,5 +29,5 @@ __all__ = [
     "close_client",
     "get_client",
     "get_provider",
-    "router",
+    "proxy_router",
 ]

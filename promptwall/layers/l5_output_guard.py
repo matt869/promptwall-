@@ -109,6 +109,13 @@ class OutputGuardLayer(Layer):
                     trust=TrustLevel.THIRD_PARTY,
                     source="model_output",
                     confidence=0.95 if hit.auto_fetch else 0.5,
+                    # Defanging already neutralised this, so it does not by
+                    # itself block: a page that merely makes the model emit an
+                    # image URL would otherwise be a denial-of-service vector.
+                    # The weight is still substantial, because emitting a
+                    # beacon is strong evidence of an attack in progress and
+                    # L6 should see it accumulate across the session.
+                    weight=0.45 if hit.auto_fetch else 0.1,
                     meta={"url_host": hit.host, "reason": hit.reason},
                 )
             )

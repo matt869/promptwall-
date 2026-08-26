@@ -50,15 +50,18 @@ class Finding:
     #: 0..1. For rule hits this is the rule's weight; for the classifier it
     #: is the calibrated probability.
     confidence: float = 1.0
-    #: Contribution to the aggregate risk score.
-    weight: float = 0.0
+    #: Contribution to the aggregate risk score. None means "derive it from
+    #: severity"; an explicit 0.0 means "this finding must not raise risk",
+    #: which is what a *mitigated* issue reports. Conflating the two made a
+    #: successfully redacted secret block the response it had just made safe.
+    weight: float | None = None
 
     #: Short excerpt, only populated when content logging is enabled.
     excerpt: str = ""
     meta: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        if not self.weight:
+        if self.weight is None:
             self.weight = SEVERITY_WEIGHT[self.severity] * max(0.0, min(1.0, self.confidence))
 
     @property
