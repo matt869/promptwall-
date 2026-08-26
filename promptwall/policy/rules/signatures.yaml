@@ -1,0 +1,232 @@
+# PromptWall signature pack.
+#
+# These are high-precision patterns, not a substitute for L2/L3. A signature
+# earns its place by being cheap and rarely wrong; anything fuzzy belongs in
+# the classifier instead.
+#
+# max_trust scopes a rule to provenance. Most injection phrasings are merely
+# odd in a user turn but near-certain attacks inside a fetched document, so
+# they are scoped to `third_party` to keep false positives survivable.
+version: "1"
+description: Baseline prompt-injection signatures.
+
+signatures:
+  # --- instruction override -------------------------------------------------
+  - id: io.ignore_previous
+    description: Classic instruction-override opener.
+    family: instruction_override
+    severity: high
+    pattern: '(?:ignore|disregard|forget|override)\s+(?:all\s+|any\s+|the\s+)?(?:previous|prior|above|earlier|preceding|foregoing|last)\s+(?:instruction|prompt|direction|rule|command|message|context)s?'
+    tags: [classic, high-signal]
+
+  - id: io.ignore_everything
+    description: Override phrased against the whole context.
+    family: instruction_override
+    severity: high
+    pattern: '(?:ignore|disregard|forget)\s+(?:everything|all)\s+(?:you\s+)?(?:were\s+|have\s+been\s+)?(?:told|instructed|said|learned)(?:\s+(?:before|above|previously|earlier))?'
+    tags: [classic]
+
+  - id: io.new_instructions
+    description: Attempts to open a fresh, higher-priority instruction block.
+    family: instruction_override
+    severity: high
+    pattern: '(?:^|\n)\s*(?:new|updated|revised|real|actual|true|corrected)\s+(?:instruction|directive|system\s+prompt|rule)s?\s*[:\-]'
+    max_trust: third_party
+    tags: [indirect]
+
+  - id: io.system_prompt_spoof
+    description: Fake system or role header injected into content.
+    family: instruction_override
+    severity: critical
+    pattern: '(?:^|\n)\s*(?:\[|<|#{1,3}\s*)?(?:system|developer|admin(?:istrator)?)\s*(?:\]|>)?\s*(?:prompt)?\s*[:\-]\s*\S'
+    max_trust: third_party
+    tags: [indirect, spoof]
+
+  - id: io.role_reassignment
+    description: Redefining the assistant identity mid-conversation.
+    family: instruction_override
+    severity: medium
+    pattern: '(?:you\s+are\s+now|from\s+now\s+on\s+you\s+(?:are|will\s+be)|your\s+new\s+(?:role|identity|persona)\s+is)\b'
+    tags: [persona]
+
+  - id: io.end_of_context
+    description: Faking the end of untrusted content to escape a fence.
+    family: instruction_override
+    severity: critical
+    pattern: '(?:end\s+of\s+(?:document|context|data|input|untrusted)|</(?:document|context|data|untrusted)>|```\s*(?:end|stop))'
+    max_trust: third_party
+    tags: [fence-escape]
+
+  # --- addressed-to-the-model tells (indirect injection) --------------------
+  - id: ind.note_to_ai
+    description: Content that addresses the model rather than the reader.
+    family: indirect
+    severity: high
+    pattern: '(?:note|message|instruction|important)s?\s+(?:to|for)\s+(?:the\s+)?(?:ai|assistant|model|llm|chatbot|agent|language\s+model)\b'
+    max_trust: third_party
+    tags: [indirect, high-signal]
+
+  - id: ind.ai_reading_this
+    description: Direct address to a model parsing the document.
+    family: indirect
+    severity: high
+    pattern: '(?:if\s+you\s+are\s+(?:an?\s+)?(?:ai|assistant|language\s+model|llm)|when\s+(?:summar|process|read)\w*\s+this\s+(?:page|document|file|email))'
+    max_trust: third_party
+    tags: [indirect]
+
+  - id: ind.hidden_directive
+    description: Content claiming to be invisible to the human user.
+    family: indirect
+    severity: high
+    pattern: '(?:hidden|invisible|do\s+not\s+(?:show|display|mention|reveal))\s+(?:from|to)?\s*(?:the\s+)?(?:user|human|reader|screen)'
+    max_trust: third_party
+    tags: [indirect, stealth]
+
+  # --- system prompt leakage ------------------------------------------------
+  - id: leak.repeat_above
+    description: Verbatim-echo request aimed at the system prompt.
+    family: sysprompt_leak
+    severity: high
+    pattern: '(?:repeat|print|output|echo|show|display|reveal|recite)\s+(?:back\s+)?(?:me\s+)?(?:everything|all|the\s+text|your\s+\w+)?\s*(?:above|before|preceding|verbatim|word\s+for\s+word)'
+    tags: [leak]
+
+  - id: leak.system_prompt_request
+    description: Direct request for the system prompt or configuration.
+    family: sysprompt_leak
+    severity: high
+    pattern: '(?:what\s+(?:is|are|was)|show|reveal|print|tell\s+me|repeat)\s+(?:your|the)\s+(?:system\s+prompt|initial\s+(?:instruction|prompt)|original\s+instruction|prompt\s+template|configuration|guidelines|directive)s?'
+    tags: [leak]
+
+  - id: leak.delimiter_probe
+    description: Probing for the boundary of the system message.
+    family: sysprompt_leak
+    severity: medium
+    pattern: '(?:everything\s+(?:above|before)\s+(?:this|the)\s+(?:line|point|message)|the\s+text\s+between\s+.{0,20}(?:tags|delimiters|markers))'
+    tags: [leak, probe]
+
+  # --- exfiltration ---------------------------------------------------------
+  - id: exf.markdown_image_beacon
+    description: Markdown image whose URL carries a query payload.
+    family: exfiltration
+    severity: critical
+    pattern: '!\[[^\]]*\]\(\s*https?://[^\s)]+[?&][^\s)]*=[^\s)]+\)'
+    tags: [exfil, zero-click, high-signal]
+
+  - id: exf.image_with_placeholder
+    description: Image URL templated with content for the model to fill in.
+    family: exfiltration
+    severity: critical
+    pattern: '!\[[^\]]*\]\([^)]*\{\{?[^}]{1,60}\}?\}[^)]*\)'
+    tags: [exfil, zero-click]
+
+  - id: exf.send_data_to_url
+    description: Instruction to transmit context to an external endpoint.
+    family: exfiltration
+    severity: critical
+    pattern: '(?:send|post|upload|transmit|forward|exfiltrate|report|submit|e-?mail|leak|share)\s+(?:the\s+|all\s+|your\s+|this\s+)?(?:conversation|history|data|content|context|secret|key|token|credential|password|result)s?\b[^.\n]{0,60}?\b(?:to|at|via)\s+(?:https?://|www\.|[\w.-]+\.[a-z]{2,})'
+    tags: [exfil]
+
+  - id: exf.append_to_url
+    description: Instruction to encode context into a URL the model emits.
+    family: exfiltration
+    severity: critical
+    pattern: '(?:append|encode|include|embed|add|concatenate)\s+(?:the\s+)?[^.\n]{0,40}?(?:secret|key|token|password|conversation|history|context|data|summary)[^.\n]{0,40}?\b(?:to|in|into|onto)\s+(?:the\s+)?(?:url|link|query|image|address|endpoint)'
+    tags: [exfil]
+
+  # --- tool abuse -----------------------------------------------------------
+  - id: tool.invoke_directive
+    description: Untrusted content instructing a specific tool call.
+    family: tool_abuse
+    severity: critical
+    pattern: '(?:call|invoke|use|execute|run|trigger)\s+(?:the\s+)?[\w.\-]{2,40}\s+(?:tool|function|api|command|endpoint|plugin|skill)\b'
+    max_trust: third_party
+    tags: [tool, indirect]
+
+  - id: tool.email_send
+    description: Untrusted content directing an outbound message.
+    family: tool_abuse
+    severity: critical
+    pattern: '(?:send|compose|draft|forward)\s+(?:an?\s+)?(?:e-?mail|message|dm|slack|text)\b[^.\n]{0,60}?\b(?:to|at)\s+\S+@\S+'
+    max_trust: third_party
+    tags: [tool, indirect, exfil]
+
+  - id: tool.destructive_verb
+    description: Untrusted content directing a destructive operation.
+    family: tool_abuse
+    severity: critical
+    pattern: '(?:delete|drop|truncate|remove|wipe|erase|purge|revoke|disable)\s+(?:all\s+|every\s+|the\s+)?(?:file|table|record|user|account|repo|database|bucket|key|backup)s?\b'
+    max_trust: third_party
+    tags: [tool, destructive]
+
+  # --- jailbreak framing ----------------------------------------------------
+  - id: jb.persona_dan
+    description: Named jailbreak personas.
+    family: roleplay
+    severity: medium
+    pattern: '\b(?:DAN|STAN|DUDE|AIM|developer\s+mode|do\s+anything\s+now|jailbr(?:eak|oken))\b'
+    tags: [jailbreak]
+
+  - id: jb.restriction_lift
+    description: Framing that claims restrictions no longer apply.
+    family: roleplay
+    severity: medium
+    pattern: '(?:no\s+(?:longer\s+)?(?:bound|restricted|limited)\s+by|without\s+(?:any\s+)?(?:restriction|limitation|filter|guardrail|censorship)|bypass\s+(?:your\s+)?(?:filter|restriction|guardrail|safety))'
+    tags: [jailbreak]
+
+  - id: jb.hypothetical_framing
+    description: Fiction framing used to launder a disallowed request.
+    family: roleplay
+    severity: low
+    pattern: '(?:hypothetically|in\s+a\s+fictional|pretend\s+(?:that\s+)?you|imagine\s+you\s+are|for\s+(?:a\s+)?(?:story|novel|research)\s+purposes?)\b[^.\n]{0,80}?\b(?:no\s+rules|anything|unrestricted|illegal)'
+    tags: [jailbreak, low-precision]
+
+  # --- encoding / smuggling -------------------------------------------------
+  # Invisible-character classes are written as regex escapes on purpose: a
+  # literal zero-width character in this file would be unreviewable in a diff.
+  - id: enc.base64_blob
+    description: Long base64 run, a common smuggling envelope.
+    family: encoding
+    severity: low
+    pattern: '(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{60,}={0,2}(?![A-Za-z0-9+/])'
+    ignore_case: false
+    tags: [encoding]
+
+  - id: enc.decode_and_obey
+    description: Instruction to decode a payload and act on it.
+    family: encoding
+    severity: critical
+    pattern: '(?:decode|decrypt|de-?obfuscate|base64|rot-?13|reverse)\s+(?:the\s+)?(?:following|this|below|string|text|payload)[^.\n]{0,60}?\b(?:and\s+)?(?:then\s+)?(?:follow|execute|obey|do|run|comply|act)'
+    tags: [encoding, high-signal]
+
+  - id: enc.zero_width
+    description: Zero-width, soft-hyphen or bidi control characters hiding text.
+    family: encoding
+    severity: high
+    pattern: '[​-‏‪-‮⁠-⁤­﻿]'
+    ignore_case: false
+    tags: [encoding, stealth]
+
+  - id: enc.tag_chars
+    description: Unicode Tag block, invisible to humans and readable by models.
+    family: encoding
+    severity: critical
+    pattern: '[\U000e0000-\U000e007f]'
+    ignore_case: false
+    tags: [encoding, stealth, high-signal]
+
+  # --- authority / urgency pressure ----------------------------------------
+  - id: soc.fake_authority
+    description: Claimed authorization from the operator or vendor.
+    family: instruction_override
+    severity: medium
+    pattern: '(?:authorized|approved|sanctioned|permitted|cleared)\s+by\s+(?:openai|anthropic|google|the\s+(?:developer|admin|operator|owner|company))'
+    max_trust: third_party
+    tags: [social]
+
+  - id: soc.override_code
+    description: Fabricated override or maintenance credential.
+    family: instruction_override
+    severity: high
+    pattern: '(?:override|admin|master|maintenance|debug|god)\s*(?:code|key|token|password|mode)\s*[:=]\s*\S+'
+    max_trust: third_party
+    tags: [social, spoof]

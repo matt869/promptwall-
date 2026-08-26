@@ -1,0 +1,180 @@
+# Tool authorization policy.
+#
+# This is the layer that matters. Detection is probabilistic and an attacker
+# gets unlimited attempts at it; tool gating is deterministic and is where a
+# successful injection stops being a curiosity and starts being an incident.
+#
+# The controlling question is never "does this text look malicious?" but
+# "is the authority behind this call good enough for what it will do?"
+#
+#   deny_if_tainted_request  the model decided to make this call while
+#                            untrusted content was in context asking for it
+#   allow_tainted_args       argument values may derive from untrusted spans
+#   min_trust                provenance floor for the invoking context
+#
+# default_effect: deny -- a tool nobody wrote policy for is one nobody vetted.
+version: "1"
+description: Default tool authorization policy.
+default_effect: deny
+
+rules:
+  # --- reads: broadly safe, still not unconditional -------------------------
+  - name: web_search
+    description: Search the public web.
+    side_effect: read
+    min_trust: third_party
+    deny_if_tainted_request: false
+    allow_tainted_args: true
+    severity: low
+    on_violation: transform
+    args:
+      - name: query
+        max_length: 2000
+
+  - name: web_fetch
+    description: Fetch a URL.
+    side_effect: read
+    min_trust: third_party
+    # A fetched page telling us to fetch another URL is how SSRF and
+    # tracking-beacon chains start, so the URL may not come from tainted text.
+    deny_if_tainted_request: false
+    allow_tainted_args: false
+    severity: medium
+    args:
+      - name: url
+        required: true
+        max_length: 2048
+        allow_tainted: false
+        deny_pattern: '(?i)^(?:file|ftp|gopher|data|javascript|vbscript):|(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|169\.254\.169\.254|metadata\.google\.internal)|(?:^https?://(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.))'
+
+  - name: file.read
+    description: Read a file from the workspace.
+    side_effect: read
+    min_trust: user
+    allow_tainted_args: false
+    severity: medium
+    args:
+      - name: path
+        required: true
+        allow_tainted: false
+        deny_pattern: '(?:\.\.[\/]|^[\/]|^[A-Za-z]:|\.(?:env|pem|key|p12|pfx)$|(?:^|[\/])\.(?:git|ssh|aws|kube)(?:[\/]|$)|id_(?:rsa|ed25519)|credentials|\.netrc)'
+
+  - name: db.query
+    description: Read-only database query.
+    side_effect: read
+    min_trust: user
+    allow_tainted_args: false
+    severity: medium
+    args:
+      - name: sql
+        required: true
+        allow_tainted: false
+        deny_pattern: '(?is)\b(?:insert|update|delete|drop|truncate|alter|create|grant|revoke|attach|copy|into\s+outfile|load_file)\b'
+
+  # --- writes: require real user authority ---------------------------------
+  - name: file.write
+    description: Write a file to the workspace.
+    side_effect: write
+    min_trust: user
+    deny_if_tainted_request: true
+    allow_tainted_args: true
+    severity: high
+    args:
+      - name: path
+        required: true
+        allow_tainted: false
+        deny_pattern: '(?:\.\.[\/]|^[\/]|^[A-Za-z]:|(?:^|[\/])\.(?:git|ssh|aws|kube)(?:[\/]|$)|\.(?:sh|bash|zsh|ps1|bat|cmd|exe|dll|so)$)'
+
+  - name: db.write
+    description: Mutating database statement.
+    side_effect: write
+    min_trust: user
+    deny_if_tainted_request: true
+    allow_tainted_args: false
+    require_confirmation: true
+    severity: high
+
+  - name: calendar.create
+    description: Create a calendar event.
+    side_effect: write
+    min_trust: user
+    deny_if_tainted_request: true
+    severity: medium
+
+  # --- outbound communication: the classic exfiltration channel -------------
+  - name: send_email
+    description: Send an email on the user's behalf.
+    side_effect: external_comm
+    min_trust: user
+    # The whole point. A fetched page must never be able to cause an email.
+    deny_if_tainted_request: true
+    allow_tainted_args: false
+    require_confirmation: true
+    severity: critical
+    args:
+      - name: to
+        required: true
+        allow_tainted: false
+        max_length: 512
+      - name: body
+        # Quoting a fetched document into a mail the user asked for is
+        # legitimate; the recipient is what must stay untainted.
+        allow_tainted: true
+        max_length: 100000
+      - name: attachments
+        allow_tainted: false
+
+  - name: slack.post
+    description: Post a Slack message.
+    side_effect: external_comm
+    min_trust: user
+    deny_if_tainted_request: true
+    allow_tainted_args: true
+    severity: high
+    args:
+      - name: channel
+        required: true
+        allow_tainted: false
+
+  - name: http.request
+    description: Arbitrary outbound HTTP.
+    side_effect: external_comm
+    min_trust: developer
+    deny_if_tainted_request: true
+    allow_tainted_args: false
+    severity: critical
+    args:
+      - name: url
+        required: true
+        allow_tainted: false
+        deny_pattern: '(?i)^(?:file|ftp|gopher|data|javascript):|(?:localhost|127\.0\.0\.1|169\.254\.169\.254|metadata\.google\.internal)'
+
+  # --- destructive: developer authority only -------------------------------
+  - name: shell.exec
+    description: Execute a shell command.
+    side_effect: destructive
+    min_trust: developer
+    deny_if_tainted_request: true
+    allow_tainted_args: false
+    require_confirmation: true
+    severity: critical
+
+  - name: file.delete
+    description: Delete a file.
+    side_effect: destructive
+    min_trust: developer
+    deny_if_tainted_request: true
+    allow_tainted_args: false
+    require_confirmation: true
+    severity: critical
+
+  # --- catch-all -----------------------------------------------------------
+  # Reached only when default_effect is flipped to allow. Kept so that a
+  # permissive deployment still gets taint checking rather than nothing.
+  - name: "*"
+    description: Unlisted tools.
+    side_effect: write
+    min_trust: user
+    deny_if_tainted_request: true
+    allow_tainted_args: false
+    severity: high
