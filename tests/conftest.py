@@ -25,19 +25,25 @@ from promptwall.policy.loader import PolicyStore, load_bundle
 from promptwall.session.store import MemorySessionStore
 
 
+def _base(mode: Mode) -> Settings:
+    settings = Settings(mode=mode, auth_required=False, log_level="CRITICAL")
+    # Pin L2 to the built-in fallback. Otherwise the suite behaves differently
+    # on a machine where someone has run models/train_classifier.py, and a test
+    # that depends on an untracked local artifact is not a test.
+    settings.classifier.model_path = "models/artifacts/__pinned_to_fallback__.onnx"
+    settings.telemetry.audit_enabled = False
+    return settings
+
+
 @pytest.fixture
 def settings() -> Settings:
     """Enforcing settings with auth off. The common case for pipeline tests."""
-    return Settings(
-        mode=Mode.ENFORCE,
-        auth_required=False,
-        log_level="CRITICAL",
-    )
+    return _base(Mode.ENFORCE)
 
 
 @pytest.fixture
 def monitor_settings() -> Settings:
-    return Settings(mode=Mode.MONITOR, auth_required=False, log_level="CRITICAL")
+    return _base(Mode.MONITOR)
 
 
 @pytest.fixture
