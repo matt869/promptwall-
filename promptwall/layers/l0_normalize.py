@@ -83,9 +83,13 @@ class NormalizeLayer(Layer):
                 )
             )
 
-        # Only decode untrusted regions. Decoding a developer's own base64
-        # config blob and then scanning it for injection phrasings is a
-        # reliable way to manufacture false positives.
+        # Decode anything the developer did not author. The floor is USER,
+        # not THIRD_PARTY: a user pasting a base64 blob that decodes to an
+        # override is still an attack, and scoping decoding to retrieved
+        # content alone made every direct encoded attack invisible.
+        # DEVELOPER and SYSTEM stay exempt, since decoding a developer's own
+        # config blob and scanning it for injection phrasings reliably
+        # manufactures false positives.
         decoded = self._decode_untrusted(ctx, normalized)
         ctx.decoded = decoded
         if decoded:
@@ -119,7 +123,7 @@ class NormalizeLayer(Layer):
             return decode_all(normalized)
 
         out = []
-        for span in taint.regions_at_or_below(TrustLevel.THIRD_PARTY):
+        for span in taint.regions_at_or_below(TrustLevel.USER):
             chunk = normalized[span.start : span.end]
             for decoded in decode_all(chunk):
                 decoded.start += span.start

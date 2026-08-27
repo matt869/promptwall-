@@ -18,11 +18,56 @@ becoming an unlabelled string with no provenance.
 
 from __future__ import annotations
 
+import re
+
 from ..constants import AttackFamily, LayerName, Phase, Severity, TrustLevel
 from ..pipeline.context import PipelineContext
 from ..pipeline.verdict import Finding
 from ..taint.labels import TaintMap
 from .base import Layer
+
+
+#: Metalinguistic framing: text that talks *about* a phrase rather than
+#: using it. "Translate this sentence: ...", "a user reported typing ...".
+_QUOTING_CONTEXT = re.compile(
+    r"(?i)\b(?:translat\w+|quot\w+|cit\w+|example|e\.g\.|for instance|report\w+|typed|said|wrote|says|writes|phrase|sentence|string|literal|means|meaning|explain\w*|describ\w+|what does|ticket|bug ?report|test (?:case|fixture|data)|documentation|article|paper|deck|training)\b"
+)
+
+_OPEN_QUOTES = ("'", '"', "`", "«", "“", "‘")
+_CLOSE_QUOTES = ("'", '"', "`", "»", "”", "’")
+
+#: How much a quoted match keeps. Not zero: quoting is evidence about intent,
+#: not proof of innocence.
+_QUOTED_RETENTION = 0.2
+
+
+def _looks_quoted(text: str, start: int, end: int) -> bool:
+    """Is this match being *mentioned* rather than *used*?"""
+    before = text[max(0, start - 3) : start].strip()
+    after = text[end : end + 3].strip()
+    if before.endswith(_OPEN_QUOTES) and after.startswith(_CLOSE_QUOTES):
+        return True
+    return bool(_QUOTING_CONTEXT.search(text[max(0, start - 90) : start]))
+
+
+def _discount_quoted(findings: list[Finding], text: str) -> list[Finding]:
+    """Downweight injection phrases that are being discussed, not issued.
+
+    Scoped to USER trust and above, and that scope is the whole point.
+    Quoting is a plausible explanation when a person is asking a question
+    about prompt injection; it is NO defence at all when the text came from a
+    retrieved document, where an attacker would simply wrap the payload in
+    quotation marks to buy the discount. Untrusted content therefore keeps
+    its full weight, and the taint and tool-gate layers remain the real
+    control regardless.
+    """
+    for finding in findings:
+        if finding.trust < TrustLevel.USER or finding.start < 0:
+            continue
+        if _looks_quoted(text, finding.start, finding.end):
+            finding.weight = round((finding.weight or 0.0) * _QUOTED_RETENTION, 6)
+            finding.meta = {**finding.meta, "quoted_context": True}
+    return findings
 
 
 class HeuristicsLayer(Layer):
@@ -62,7 +107,7 @@ class HeuristicsLayer(Layer):
             )
 
         findings.extend(self._scan_decoded(ctx, include_excerpt))
-        deduped = _dedupe(findings)
+        deduped = _discount_quoted(_dedupe(findings), ctx.text)
 
         # Corroboration across independent renderings is itself evidence:
         # the same rule firing in both the plain text and a decoded payload

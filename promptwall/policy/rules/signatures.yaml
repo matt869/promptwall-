@@ -46,6 +46,20 @@ signatures:
     max_trust: third_party
     tags: [indirect, spoof]
 
+  - id: io.instructions_revoked
+    description: Claims that earlier instructions no longer apply.
+    family: instruction_override
+    severity: high
+    pattern: '(?:(?:previous|prior|earlier|original|above)\s+(?:instruction|directive|rule|guideline|prompt)s?\s+(?:are|is|have\s+been|has\s+been)\s+(?:cancelled|canceled|revoked|void|obsolete|superseded|no\s+longer\s+(?:valid|active|in\s+effect)))|(?:(?:new|updated|these)\s+(?:instruction|directive|rule)s?\s+(?:supersede|override|replace|take\s+precedence\s+over))'
+    tags: [override]
+
+  - id: io.override_directives
+    description: Direct command to override the assistant directives.
+    family: instruction_override
+    severity: high
+    pattern: '(?:override|bypass|circumvent|suspend|cancel)\s+(?:your\s+|the\s+|all\s+)?(?:prior|previous|existing|current|original|earlier)?\s*(?:directive|instruction|rule|guideline|restriction|constraint|policy|guardrail)s?'
+    tags: [override]
+
   - id: io.role_reassignment
     description: Redefining the assistant identity mid-conversation.
     family: instruction_override
@@ -98,7 +112,7 @@ signatures:
     description: Direct request for the system prompt or configuration.
     family: sysprompt_leak
     severity: high
-    pattern: '(?:what\s+(?:is|are|was)|show|reveal|print|tell\s+me|repeat)\s+(?:your|the)\s+(?:system\s+prompt|initial\s+(?:instruction|prompt)|original\s+instruction|prompt\s+template|configuration|guidelines|directive)s?'
+    pattern: '(?:what\s+(?:is|are|was)|show|reveal|print|tell\s+me|repeat|recite|list|reproduce|output|display|give\s+me)\s+(?:me\s+)?(?:your|the)\s+(?:\w+\s+){0,2}?(?:system\s+prompt|initial\s+(?:instruction|prompt|configuration)|original\s+instruction|prompt\s+template|configuration|guideline|directive|instruction)s?'
     tags: [leak]
 
   - id: leak.delimiter_probe
@@ -142,7 +156,10 @@ signatures:
     description: Untrusted content instructing a specific tool call.
     family: tool_abuse
     severity: critical
-    pattern: '(?:call|invoke|use|execute|run|trigger)\s+(?:the\s+)?[\w.\-]{2,40}\s+(?:tool|function|api|command|endpoint|plugin|skill)\b'
+    # Two forms: an explicit "<name> tool", or a dotted/underscored callable
+    # name after an invocation verb ("Invoke http.request against ...").
+    # Requiring the literal noun let the second form through entirely.
+    pattern: '(?:call|invoke|use|execute|run|trigger)\s+(?:the\s+)?(?:[\w.\-]{2,40}\s+(?:tool|function|api|command|endpoint|plugin|skill)\b|[a-z][\w\-]*[._][\w\-]{2,30}\b)'
     max_trust: third_party
     tags: [tool, indirect]
 
@@ -166,15 +183,26 @@ signatures:
   - id: jb.persona_dan
     description: Named jailbreak personas.
     family: roleplay
-    severity: medium
+    # High, not medium: these strings have no benign use as an instruction.
+    # Someone *discussing* them is handled by the quoted-context discount in
+    # L1 rather than by keeping the severity artificially low, which only
+    # pushed real attacks below the review threshold.
+    severity: high
     pattern: '\b(?:DAN|STAN|DUDE|AIM|developer\s+mode|do\s+anything\s+now|jailbr(?:eak|oken))\b'
     tags: [jailbreak]
 
   - id: jb.restriction_lift
     description: Framing that claims restrictions no longer apply.
     family: roleplay
-    severity: medium
+    severity: high
     pattern: '(?:no\s+(?:longer\s+)?(?:bound|restricted|limited)\s+by|without\s+(?:any\s+)?(?:restriction|limitation|filter|guardrail|censorship)|bypass\s+(?:your\s+)?(?:filter|restriction|guardrail|safety))'
+    tags: [jailbreak]
+
+  - id: jb.capability_claim
+    description: Asserts the assistant has no policy or guardrails.
+    family: roleplay
+    severity: high
+    pattern: '(?:(?:have|has|with)\s+no\s+(?:content\s+)?(?:policy|policies|restriction|limit|guardrail|filter|rule)s?)|(?:not\s+bound\s+by\s+(?:any\s+)?(?:rule|restriction|guideline|policy|constraint)s?)|(?:no\s+longer\s+bound\s+by)'
     tags: [jailbreak]
 
   - id: jb.hypothetical_framing
