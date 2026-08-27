@@ -1,0 +1,16 @@
+# Grafana reads this at startup. Without it the dashboard loads but every
+# panel shows "datasource not found", which looks like a broken dashboard
+# rather than missing configuration.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    # Must match the DS_PROMETHEUS variable the dashboard is built against.
+    uid: DS_PROMETHEUS
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 15s

@@ -16,7 +16,8 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip wheel --no-deps --wheel-dir /wheels . \
  && pip wheel --wheel-dir /wheels \
       "fastapi>=0.110" "uvicorn[standard]>=0.27" "pydantic>=2.6" \
-      "pyyaml>=6.0" "httpx>=0.27" "prometheus-client>=0.20" "regex>=2023.12"
+      "pyyaml>=6.0" "httpx>=0.27" "prometheus-client>=0.20" "regex>=2023.12" \
+      "redis>=5.0"
 
 # --- runtime ----------------------------------------------------------------
 FROM python:3.12-slim AS runtime
@@ -28,8 +29,12 @@ RUN groupadd --gid 10001 promptwall \
 
 WORKDIR /app
 
+# The redis extra is installed because the shipped compose and Kubernetes
+# configs both select PW_SESSION_BACKEND=redis. Without it the gateway
+# falls back to in-process sessions and cross-turn detection degrades
+# silently -- the failure this image must not ship with.
 RUN --mount=type=bind,from=builder,source=/wheels,target=/wheels \
-    pip install --no-cache-dir --no-index --find-links=/wheels promptwall \
+    pip install --no-cache-dir --no-index --find-links=/wheels "promptwall[redis]" \
  && rm -rf /root/.cache
 
 # Policy is copied separately so it can be overridden by a mount without

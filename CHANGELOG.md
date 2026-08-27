@@ -62,7 +62,15 @@ the tool gate is unaffected.
 - Vulnerable-app demo: 2 exfiltrations without PromptWall, 0 with.
 - L2 training pipeline. On the shipped corpus the built-in scorer beats the
   trained model on held-out data, and `models/eval_classifier.py` says so.
-- 133 tests; ADRs for the three load-bearing decisions.
+- Redis session store (`promptwall[redis]`), required behind more than one
+  replica. Serialised state is versioned, and an unreachable Redis degrades
+  to "no session" rather than failing requests.
+- Container image, compose stack with Prometheus and a provisioned Grafana
+  dashboard, and Kubernetes manifests applied with `kubectl apply -k .`. The
+  policy ConfigMap is generated from the real rule files and content-hashed,
+  so editing a rule rolls the Deployment automatically.
+- 149 tests; ADRs for the three load-bearing decisions. `ruff` and `mypy`
+  both clean.
 
 ### Known limitations
 
@@ -73,6 +81,30 @@ the tool gate is unaffected.
   routing.
 
 See [failure analysis](docs/failure-analysis.md).
+
+### Fixed before release
+
+Found by auditing the shipped configuration against the code, and by running
+`mypy` for the first time:
+
+- `PW_SESSION_BACKEND=redis` was selected by both the compose stack and the
+  Kubernetes manifests, but `redis_store.py` did not exist. Every shipped
+  deployment config silently fell back to in-process sessions -- exactly the
+  failure the docs warn about.
+- The Kubernetes manifests referenced a `promptwall-policy` ConfigMap and a
+  `promptwall-redis` Service that were never defined. Valid YAML, dangling
+  references, pods stuck in `ContainerCreating`.
+- The compose stack mounted Grafana dashboards without a provider or a
+  datasource, so the dashboard silently loaded nothing.
+- `Finding.weight` was typed `float | None`, which leaked `None` into every
+  arithmetic site touching a weight. Replaced with a negative sentinel, since
+  real weights are 0..1.
+- The ONNX probability extractor defaulted a missing class key to `0.0`,
+  which reads as "definitely benign" -- a security layer failing open with no
+  signal. It now returns `None` and ultimately raises.
+
+CI now renders the Kubernetes manifests and checks that every reference
+resolves, because these are the failures that only appear at deploy time.
 
 [Unreleased]: https://github.com/matt869/promptwall-/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/matt869/promptwall-/releases/tag/v0.1.0

@@ -26,8 +26,9 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "8080"
         prometheus.io/path: /metrics
-        # Roll pods when policy changes so a reload is not required.
-        checksum/policy: "REPLACE_WITH_CONFIGMAP_CHECKSUM"
+        # Policy changes roll the pods automatically: kustomize hashes the
+        # generated ConfigMap name from the rule files, so editing a rule
+        # produces a new name and a new rollout. See kustomization.yaml.
     spec:
       securityContext:
         runAsNonRoot: true

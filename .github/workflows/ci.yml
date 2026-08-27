@@ -51,7 +51,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      - run: pip install -e ".[dev]"
+      - run: pip install -e ".[dev,redis]"
       - name: pytest
         run: pytest -q --cov=promptwall --cov-report=xml
       - name: config and policy validate
@@ -112,6 +112,52 @@ jobs:
         with:
           name: benchmark-results
           path: /tmp/results.json
+
+  # Deployment manifests are code that only fails at deploy time otherwise.
+  # This job exists because a review caught a kustomization referencing a
+  # ConfigMap and a Redis service that did not exist -- valid YAML, dangling
+  # references, and pods stuck in ContainerCreating.
+  manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: render kustomize
+        run: |
+          kubectl kustomize . > /tmp/rendered.yaml
+          echo "rendered $(grep -c '^kind:' /tmp/rendered.yaml) manifests"
+      - name: every reference resolves
+        run: |
+          python - <<'PY'
+          import yaml
+          docs = [d for d in yaml.safe_load_all(open("/tmp/rendered.yaml")) if d]
+          names = {(d["kind"], d["metadata"]["name"]) for d in docs}
+
+          dep = next(d for d in docs
+                     if d["kind"] == "Deployment" and d["metadata"]["name"] == "promptwall")
+          spec = dep["spec"]["template"]["spec"]
+
+          for volume in spec.get("volumes", []):
+              if "configMap" in volume:
+                  ref = ("ConfigMap", volume["configMap"]["name"])
+                  assert ref in names, f"dangling volume reference: {ref}"
+
+          # The Redis URL must name a Service that this kustomization creates.
+          url = next(e["value"] for e in spec["containers"][0]["env"]
+                     if e["name"] == "PW_REDIS_URL")
+          host = url.split("//")[1].split(":")[0]
+          assert ("Service", host) in names, f"PW_REDIS_URL points at missing Service {host}"
+
+          print(f"{len(docs)} manifests, all references resolve")
+          PY
+      - name: validate compose
+        run: docker compose config --quiet && echo "compose config valid"
+      - name: grafana provisioning is present
+        run: |
+          # Mounting dashboard JSON without a provider silently loads nothing.
+          test -f deploy/grafana/provisioning/dashboards/promptwall.yml
+          test -f deploy/grafana/provisioning/datasources/prometheus.yml
+          python -c "import json;json.load(open('deploy/grafana/dashboards/promptwall.json'))"
+          echo "grafana provisioning ok"
 
   # Verifies the container actually serves traffic, rather than only building.
   docker:

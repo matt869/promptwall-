@@ -31,6 +31,9 @@ dependencies = [
 
 [project.optional-dependencies]
 ml = ["onnxruntime>=1.17", "numpy>=1.26"]
+# Required for PW_SESSION_BACKEND=redis, which is what you want behind more
+# than one replica -- in-process sessions degrade silently there.
+redis = ["redis>=5.0"]
 train = ["scikit-learn>=1.4", "skl2onnx>=1.16", "numpy>=1.26"]
 dev = [
   "pytest>=8.0",
@@ -40,7 +43,7 @@ dev = [
   "mypy>=1.9",
   "types-PyYAML",
 ]
-all = ["promptwall[ml,train,dev]"]
+all = ["promptwall[ml,train,dev,redis]"]
 
 [project.scripts]
 promptwall = "promptwall.main:cli"

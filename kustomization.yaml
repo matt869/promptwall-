@@ -1,0 +1,49 @@
+# Deploy PromptWall to Kubernetes:
+#
+#   kubectl apply -k .
+#
+# This lives at the repository root, not in deploy/k8s/, for a concrete
+# reason: kustomize refuses to read files outside its own directory, and the
+# policy ConfigMap is generated from the real rule files under promptwall/.
+# Keeping one copy of those rules matters more than tidy directory layout --
+# a second copy would drift, and a drifted security policy is worse than an
+# awkward path.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deploy/k8s/deployment.yaml
+  - deploy/k8s/redis.yaml
+  - deploy/k8s/networkpolicy.yaml
+
+# The generated name is hashed from the file contents, so editing a rule
+# produces a new ConfigMap name and rolls the Deployment automatically. The
+# alternative is a checksum annotation somebody has to remember to bump, and
+# a policy change that silently fails to take effect is the worst outcome
+# available to a security control.
+configMapGenerator:
+  - name: promptwall-policy
+    files:
+      - promptwall/policy/rules/signatures.yaml
+      - promptwall/policy/rules/tools.yaml
+      - promptwall/policy/rules/redaction.yaml
+      - promptwall/policy/rules/VERSION
+
+# Secrets are NOT generated here, so credentials never enter the repository:
+#
+#   kubectl create secret generic promptwall \
+#     --from-literal=api-keys="$(python -c 'import secrets;print(secrets.token_urlsafe(32))')" \
+#     --from-literal=admin-api-keys="$(python -c 'import secrets;print(secrets.token_urlsafe(32))')" \
+#     --from-literal=upstream-api-key=sk-...
+
+images:
+  - name: ghcr.io/matt869/promptwall-
+    newTag: "0.1.0"
+
+labels:
+  - pairs:
+      app.kubernetes.io/name: promptwall
+      app.kubernetes.io/part-of: promptwall
+    # Selectors are deliberately untouched: they are immutable on an existing
+    # Deployment, so rewriting them turns an upgrade into a manual delete.
+    includeSelectors: false

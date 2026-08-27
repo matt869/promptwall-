@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from pydantic import BaseModel
 
 from ..exceptions import PolicyNotFoundError, PolicyValidationError
 from .schema import PolicyBundle, RedactionPack, SignaturePack, ToolPack
@@ -81,7 +82,7 @@ def load_bundle(rules_dir: str | Path | None = None, *, strict: bool = True) -> 
 
     paths = {key: directory / name for key, name in _FILES.items()}
 
-    def _pack(key: str, model: type) -> Any:
+    def _pack(key: str, model: type[BaseModel]) -> Any:
         path = paths[key]
         if not path.is_file():
             if strict:

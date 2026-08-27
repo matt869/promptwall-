@@ -197,10 +197,13 @@ Full boundary: [threat-model.md](docs/threat-model.md).
 
 ```bash
 pip install -e ".[dev]"
-pytest -q                       # 133 tests
+pytest -q                       # 149 tests
 promptwall check                # validate config and policy
-ruff check . && mypy promptwall
+ruff check . && mypy promptwall # both clean
 ```
+
+Extras: `redis` (shared sessions), `ml` (ONNX inference), `train`
+(scikit-learn + skl2onnx), `dev`, or `all`.
 
 ## Status
 

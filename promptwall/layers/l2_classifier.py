@@ -20,7 +20,7 @@ import logging
 import math
 import re
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 from ..constants import AttackFamily, LayerName, Phase, Severity, TrustLevel
 from ..pipeline.context import PipelineContext
@@ -233,12 +233,25 @@ class OnnxScorer:
             prob = self._extract_probability(value)
             if prob is not None:
                 return prob
-        return float(outputs[0][0])
 
-    def _extract_probability(self, value) -> float | None:
+        # No output matched a shape we recognise. Returning a guess here
+        # would be worse than saying so: a silently wrong probability is
+        # indistinguishable from a confident one downstream.
+        raise ValueError(
+            f"ONNX model produced no recognisable probability output "
+            f"(got {[getattr(o, 'shape', type(o).__name__) for o in outputs]})"
+        )
+
+    def _extract_probability(self, value: Any) -> float | None:
         if isinstance(value, list) and value and isinstance(value[0], dict):
+            # skl2onnx emits the positive class under either 1 or "1"
+            # depending on converter version. A missing key must NOT default
+            # to 0.0: that reads as "definitely benign" and would fail the
+            # layer open silently. Return None so the caller tries the next
+            # output, and ultimately raises.
             mapping = value[0]
-            return float(mapping.get(1, mapping.get("1", 0.0)))
+            raw = mapping.get(1, mapping.get("1"))
+            return None if raw is None else float(raw)
         arr = self._np.asarray(value)
         if arr.ndim == 2 and arr.shape[1] >= 2:
             return float(arr[0][1])

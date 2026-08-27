@@ -13,7 +13,7 @@ things depending on where it came from.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Final
 
 from .constants import (
     SEVERITY_WEIGHT,
@@ -22,6 +22,10 @@ from .constants import (
     Severity,
     TrustLevel,
 )
+
+#: Sentinel for "derive the weight from severity". Negative because a real
+#: weight is 0..1, so no caller can collide with it by accident.
+DERIVE_WEIGHT: Final = -1.0
 
 
 @dataclass(slots=True)
@@ -50,18 +54,24 @@ class Finding:
     #: 0..1. For rule hits this is the rule's weight; for the classifier it
     #: is the calibrated probability.
     confidence: float = 1.0
-    #: Contribution to the aggregate risk score. None means "derive it from
-    #: severity"; an explicit 0.0 means "this finding must not raise risk",
-    #: which is what a *mitigated* issue reports. Conflating the two made a
-    #: successfully redacted secret block the response it had just made safe.
-    weight: float | None = None
+    #: Contribution to the aggregate risk score.
+    #:
+    #: DERIVE_WEIGHT means "compute it from severity"; an explicit 0.0 means
+    #: "this finding must not raise risk", which is what a *mitigated* issue
+    #: reports. Conflating the two once made a successfully redacted secret
+    #: block the response it had just made safe.
+    #:
+    #: A sentinel rather than None so the field is always a float. Typing it
+    #: Optional pushed None into every arithmetic site that touches a weight,
+    #: which is a lot of them for one initialisation detail.
+    weight: float = DERIVE_WEIGHT
 
     #: Short excerpt, only populated when content logging is enabled.
     excerpt: str = ""
     meta: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        if self.weight is None:
+        if self.weight == DERIVE_WEIGHT:
             self.weight = SEVERITY_WEIGHT[self.severity] * max(0.0, min(1.0, self.confidence))
 
     @property

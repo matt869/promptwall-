@@ -85,6 +85,10 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
     volumes:
       - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      # Grafana only loads dashboards a provider points it at, and only
+      # resolves the datasource if one is provisioned. Mounting the JSON
+      # alone gives you an empty folder and "datasource not found".
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
     depends_on:
       - prometheus
     restart: unless-stopped

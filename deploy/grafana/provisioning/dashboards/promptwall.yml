@@ -1,0 +1,16 @@
+# Mounting dashboard JSON is not enough on its own -- Grafana only picks up
+# files listed by a provider like this one.
+apiVersion: 1
+
+providers:
+  - name: promptwall
+    orgId: 1
+    folder: PromptWall
+    type: file
+    disableDeletion: false
+    # Re-read on change, so editing the JSON does not need a restart.
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

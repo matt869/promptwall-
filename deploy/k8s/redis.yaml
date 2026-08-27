@@ -1,0 +1,85 @@
+# Session store for cross-turn detection.
+#
+# Not a cache in the optional sense: without shared session state, L6 sees a
+# fragment of each conversation behind more than one replica and degrades
+# silently. Nothing errors, the detection just stops working.
+#
+# Deliberately ephemeral. Sessions are short-lived risk state with a TTL, not
+# data worth persisting -- losing them costs cross-turn context for in-flight
+# conversations and nothing else.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: promptwall-redis
+  labels: { app: promptwall-redis }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: promptwall-redis }
+  template:
+    metadata:
+      labels: { app: promptwall-redis }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          args:
+            - redis-server
+            - --save
+            - ""
+            - --appendonly
+            - "no"
+            # Bounded memory with LRU eviction: an attacker rotating session
+            # ids must not be able to grow this without limit.
+            - --maxmemory
+            - 256mb
+            - --maxmemory-policy
+            - allkeys-lru
+          ports:
+            - { name: redis, containerPort: 6379 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
+            limits:   { cpu: "500m", memory: "320Mi" }
+          livenessProbe:
+            exec: { command: ["redis-cli", "ping"] }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            exec: { command: ["redis-cli", "ping"] }
+            initialDelaySeconds: 2
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: promptwall-redis
+  labels: { app: promptwall-redis }
+spec:
+  selector: { app: promptwall-redis }
+  ports:
+    - { name: redis, port: 6379, targetPort: redis }
+---
+# Redis holds session risk state and should only ever be reachable from the
+# gateway.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: promptwall-redis
+spec:
+  podSelector:
+    matchLabels: { app: promptwall-redis }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: promptwall }
+      ports:
+        - { protocol: TCP, port: 6379 }
