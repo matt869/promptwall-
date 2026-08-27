@@ -36,9 +36,22 @@ _QUOTING_CONTEXT = re.compile(
 _OPEN_QUOTES = ("'", '"', "`", "«", "“", "‘")
 _CLOSE_QUOTES = ("'", '"', "`", "»", "”", "’")
 
-#: How much a quoted match keeps. Not zero: quoting is evidence about intent,
-#: not proof of innocence.
-_QUOTED_RETENTION = 0.2
+#: How much a quoted match keeps. Raised from 0.2 after the adaptive attacker
+#: (bench/adaptive_attacker.py) used quote framing to land 8 evasions against
+#: this very discount.
+#:
+#: It is deliberately not zero and deliberately not tiny. Structurally,
+#: "Translate this sentence: '<payload>'" is identical whether a student or
+#: an attacker wrote it, so no amount of pattern work separates them. What
+#: 0.35 buys is that a *lone* quoted phrase in a genuine question stays below
+#: the review threshold, while a quoted payload carrying any other signal
+#: still crosses it.
+#:
+#: The residual risk is accepted knowingly: quote framing also degrades the
+#: attack itself, since a model asked to translate an injection usually
+#: translates it. The controls that do not depend on this judgement -- taint
+#: tracking and the L4 tool gate -- are unaffected either way.
+_QUOTED_RETENTION = 0.35
 
 
 def _looks_quoted(text: str, start: int, end: int) -> bool:

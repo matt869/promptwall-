@@ -146,6 +146,42 @@ class UpstreamClient:
 
         raise UpstreamError(f"provider request failed: {last_error}")
 
+    def _echo(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Synthesise a reply without calling anyone.
+
+        Lets someone run the gateway and watch it work before they have a
+        provider account, and gives the demo and smoke test something
+        deterministic to talk to. It echoes what the model *would* have
+        received, which also makes spotlighting visible.
+        """
+        messages = payload.get("messages") or []
+        last = ""
+        for message in reversed(messages):
+            if str(message.get("role", "")) == "user":
+                content = message.get("content")
+                last = content if isinstance(content, str) else str(content)
+                break
+        return {
+            "id": "chatcmpl-echo",
+            "object": "chat.completion",
+            "created": int(time.time()),
+            "model": payload.get("model", "echo"),
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": (
+                            "[echo provider] PromptWall forwarded "
+                            f"{len(messages)} message(s). Last user turn: {last[:400]}"
+                        ),
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+        }
+
     async def post_json(
         self,
         path: str,
@@ -154,6 +190,8 @@ class UpstreamClient:
         headers: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """POST and parse a JSON response, with bounded retries."""
+        if self.settings.upstream.provider == "echo":
+            return self._echo(payload)
         started = time.perf_counter()
         outcome = "error"
         try:

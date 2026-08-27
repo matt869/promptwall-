@@ -8,6 +8,9 @@ from .openai_compat import OpenAICompatProvider
 PROVIDERS: dict[str, type[Provider]] = {
     "openai_compat": OpenAICompatProvider,
     "anthropic": AnthropicProvider,
+    # Speaks the OpenAI shape but is short-circuited in UpstreamClient,
+    # so PromptWall can be run and demonstrated with no provider account.
+    "echo": OpenAICompatProvider,
 }
 
 

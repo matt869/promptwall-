@@ -1,0 +1,79 @@
+# Benchmark corpus manifest.
+#
+# Regenerate everything with:
+#     python scripts/seed_datasets.py
+#
+# The corpus is generated, not collected. That is a deliberate trade and its
+# consequences are stated in docs/benchmark-methodology.md: results are
+# reproducible on any machine and carry no third-party dataset licensing, but
+# templated attacks are easier than real ones. The adaptive attacker exists
+# to measure the part this corpus cannot.
+version: "1"
+seed: 20260826
+generated_by: scripts/seed_datasets.py
+
+splits:
+  - path: attacks/direct/direct.jsonl
+    label: 1
+    families: [instruction_override, roleplay, sysprompt_leak]
+    description: >
+      Attacks typed straight into the user turn. The easy case, and the one
+      every filter catches; included as a floor rather than a challenge.
+
+  - path: attacks/indirect/indirect.jsonl
+    label: 1
+    families: [indirect]
+    description: >
+      Injections arriving through a tool result, which is the threat model
+      that motivates the whole project. The conversation is entirely
+      legitimate apart from the retrieved document.
+
+  - path: attacks/encoded/encoded.jsonl
+    label: 1
+    families: [encoding]
+    description: >
+      base64, hex, rot13, homoglyph, zero-width and Unicode Tag smuggling,
+      each in both a direct and a retrieved variant.
+
+  - path: attacks/tool_abuse/tool_abuse.jsonl
+    label: 1
+    families: [tool_abuse]
+    description: >
+      Content steering the model toward a specific dangerous tool call.
+      Detection here is secondary: L4 is the control that matters, and it
+      refuses on provenance whether or not the text was flagged.
+
+  - path: attacks/multiturn/multiturn.jsonl
+    label: 1
+    families: [multiturn]
+    scored: final_turn_only
+    description: >
+      Crescendo ladders. Intermediate turns carry `score: false` -- they are
+      replayed so the defence can accumulate session state, but they are not
+      scored, because labelling them benign would count an early detection of
+      the escalation as a false positive.
+
+  - path: benign/general/general.jsonl
+    label: 0
+    description: >
+      Ordinary traffic, including benign documents arriving through the same
+      tool channel attacks use, so "came from a tool" cannot be a shortcut.
+
+  - path: benign/hard_negatives/hard_negatives.jsonl
+    label: 0
+    tags: [hard_negative]
+    description: >
+      The split that decides deployability: benign text that looks like an
+      attack. Security training questions, a bug report quoting an injection,
+      a translation request, a test fixture containing a fake AWS key. A
+      filter that cannot pass these gets switched off in week two, at which
+      point its recall is zero.
+
+record_schema:
+  id: stable identifier, unique across the corpus
+  family: one of the AttackFamily values
+  messages: OpenAI-style chat messages, with provenance implied by role
+  label: 1 for attack, 0 for benign
+  tags: free-form labels used to slice the report
+  score: optional; false means evaluate for context but exclude from metrics
+  session_id: optional; groups multi-turn records into one conversation
