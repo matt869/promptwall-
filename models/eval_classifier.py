@@ -24,10 +24,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from bench.harness.metrics import Confusion, percentile, wilson_interval  # noqa: E402
-from bench.harness.runner import load_corpus  # noqa: E402
-from models.train_classifier import payload_text, split_by_family  # noqa: E402
-from promptwall.layers.l2_classifier import (  # noqa: E402
+from bench.harness.metrics import Confusion, percentile, wilson_interval
+from bench.harness.runner import load_corpus
+from models.train_classifier import payload_text, split_by_family
+from promptwall.layers.l2_classifier import (
     FallbackScorer,
     OnnxScorer,
     extract_features,
@@ -148,7 +148,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         onnx = OnnxScorer(model_path)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         print(f"\ncould not load {model_path}: {exc}", file=sys.stderr)
         return 1
 

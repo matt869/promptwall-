@@ -28,8 +28,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from bench.harness.runner import load_corpus  # noqa: E402
-from promptwall.layers.l2_classifier import FEATURE_NAMES, extract_features  # noqa: E402
+from bench.harness.runner import load_corpus
+from promptwall.layers.l2_classifier import FEATURE_NAMES, extract_features
 
 ARTIFACTS = ROOT / "models" / "artifacts"
 
@@ -123,7 +123,7 @@ def main(argv: list[str] | None = None) -> int:
 
     train, test, held_families = split_by_family(records, args.holdout, args.seed)
     X_train, y_train, _ = build_dataset(train)
-    X_test, y_test, test_ids = build_dataset(test)
+    X_test, y_test, _test_ids = build_dataset(test)
 
     if not X_train or len(set(y_train)) < 2:
         print("training split lacks both classes; corpus is too small", file=sys.stderr)

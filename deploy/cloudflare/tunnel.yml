@@ -1,0 +1,53 @@
+# Cloudflare Tunnel config for exposing PromptWall without opening a port.
+#
+#   cloudflared tunnel create promptwall
+#   cloudflared tunnel route dns promptwall gateway.example.com
+#   cloudflared tunnel --config deploy/cloudflare/tunnel.yml run
+#
+# The gateway holds your provider credential and terminates client auth, so
+# it should not be directly reachable from the internet. A tunnel gives you
+# an outbound-only connection: no inbound firewall rule, no public IP, and no
+# load balancer to misconfigure.
+
+tunnel: promptwall
+credentials-file: /etc/cloudflared/promptwall.json
+
+# Fail fast rather than hanging a client on a gateway that is not answering.
+originRequest:
+  connectTimeout: 10s
+  tlsTimeout: 10s
+  # Streaming responses are long-lived; the default would cut them.
+  noHappyEyeballs: false
+  keepAliveTimeout: 90s
+  httpHostHeader: gateway.example.com
+
+ingress:
+  # --- admin: never exposed ------------------------------------------------
+  # /admin exposes policy, traffic and replay. It requires an admin key, but
+  # defence in depth means it should also be unreachable from outside. Reach
+  # it over the private network or a separate, access-gated hostname.
+  - hostname: gateway.example.com
+    path: ^/admin
+    service: http_status:404
+
+  # Metrics are for your scrapers, not the public internet. They leak request
+  # volumes, decision rates and policy rule ids.
+  - hostname: gateway.example.com
+    path: ^/metrics
+    service: http_status:404
+
+  # --- the gateway ---------------------------------------------------------
+  - hostname: gateway.example.com
+    service: http://promptwall:8080
+    originRequest:
+      # Streaming must not be buffered by the edge, or time-to-first-token
+      # collapses into time-to-last-token.
+      disableChunkedEncoding: false
+
+  # --- admin over a separate, Access-protected hostname --------------------
+  # Put a Cloudflare Access policy in front of this hostname. The PromptWall
+  # admin key is then the second factor rather than the only one.
+  - hostname: promptwall-admin.example.com
+    service: http://promptwall:8080
+
+  - service: http_status:404

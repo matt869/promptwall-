@@ -1,9 +1,11 @@
 """Telemetry: logging, metrics, audit and tracing."""
 
 from .audit import AuditLog, get_audit, reset_audit
-from .logging import bind, configure as configure_logging, get_logger
+from .logging import bind, get_logger
+from .logging import configure as configure_logging
 from .metrics import Metrics, get_metrics, reset_metrics
-from .tracing import annotate_verdict, configure as configure_tracing, span
+from .tracing import annotate_verdict, span
+from .tracing import configure as configure_tracing
 
 __all__ = [
     "AuditLog",

@@ -1,0 +1,93 @@
+# Local PromptWall stack.
+#
+#   docker compose up
+#
+# Starts with the echo provider, so it runs with no credentials at all. Set
+# PW_UPSTREAM_* to point at a real model provider.
+#
+# Note PW_MODE=monitor. Nothing is blocked until you change it, which is the
+# right way to start on real traffic -- see docs/deployment.md.
+
+services:
+  promptwall:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: promptwall:local
+    ports:
+      - "8080:8080"
+    environment:
+      PW_MODE: ${PW_MODE:-monitor}
+      PW_FAIL_MODE: ${PW_FAIL_MODE:-open}
+      PW_LOG_LEVEL: ${PW_LOG_LEVEL:-INFO}
+      PW_LOG_FORMAT: json
+
+      PW_AUTH_REQUIRED: ${PW_AUTH_REQUIRED:-true}
+      PW_API_KEYS: ${PW_API_KEYS:-pw_dev_localkey}
+      PW_ADMIN_API_KEYS: ${PW_ADMIN_API_KEYS:-pw_admin_localkey}
+
+      PW_UPSTREAM_PROVIDER: ${PW_UPSTREAM_PROVIDER:-echo}
+      PW_UPSTREAM_BASE_URL: ${PW_UPSTREAM_BASE_URL:-https://api.openai.com/v1}
+      PW_UPSTREAM_API_KEY: ${PW_UPSTREAM_API_KEY:-unset}
+
+      PW_SESSION_BACKEND: redis
+      PW_REDIS_URL: redis://redis:6379/0
+
+      PW_AUDIT_ENABLED: "true"
+      PW_AUDIT_PATH: /data/audit.log
+      PW_AUDIT_STORE_CONTENT: "false"
+      PW_METRICS_ENABLED: "true"
+    volumes:
+      - audit:/data
+      # Edit rules on the host and POST /admin/policy/reload -- no rebuild,
+      # no restart, no dropped traffic.
+      - ./promptwall/policy/rules:/app/policy/rules:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+
+  # Sessions must be shared for cross-turn detection to work behind more than
+  # one replica. In-process sessions degrade silently, which is worse than
+  # failing, so the default stack wires Redis up from the start.
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    profiles: ["observability"]
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    profiles: ["observability"]
+    ports:
+      - "3000:3000"
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+    volumes:
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  audit:

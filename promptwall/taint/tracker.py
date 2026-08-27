@@ -12,8 +12,9 @@ always win over inference.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Iterable, Sequence
+from typing import Any
 
 from ..constants import FIELD_SOURCE, FIELD_TRUST, TrustLevel
 from .labels import Span, TaintMap, merge_maps

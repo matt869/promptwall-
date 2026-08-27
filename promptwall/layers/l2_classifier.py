@@ -201,8 +201,8 @@ class OnnxScorer:
     kind = "onnx"
 
     def __init__(self, model_path: str | Path) -> None:
-        import numpy as np  # noqa: PLC0415 - optional dependency
-        import onnxruntime as ort  # noqa: PLC0415
+        import numpy as np
+        import onnxruntime as ort
 
         self._np = np
         self._session = ort.InferenceSession(
@@ -282,7 +282,7 @@ class ClassifierLayer(Layer):
                     path,
                 )
                 return
-            except Exception as exc:  # noqa: BLE001 - startup diagnostics
+            except Exception as exc:
                 if not cfg.allow_fallback:
                     raise
                 self._load_error = f"{type(exc).__name__}: {exc}"

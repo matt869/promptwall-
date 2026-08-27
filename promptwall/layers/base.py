@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import time
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from ..constants import LayerName, Phase
 from ..exceptions import LayerError, LayerTimeout
@@ -45,17 +45,21 @@ class Layer(ABC):
     #: budget), where the phase check would otherwise skip them every time.
     separate_budget: bool = False
 
-    def __init__(self, settings: "Settings") -> None:
+    def __init__(self, settings: Settings) -> None:
         self.settings = settings
         self._enabled = True
 
     # -- lifecycle -------------------------------------------------------
 
-    def setup(self) -> None:
-        """Load models, compile patterns. Called once at startup."""
+    def setup(self) -> None:  # noqa: B027 - optional hook, not abstract
+        """Load models, compile patterns. Called once at startup.
 
-    def teardown(self) -> None:
-        """Release resources at shutdown."""
+        Concrete and empty on purpose: most layers need no setup, and
+        making it abstract would force every subclass to write a stub.
+        """
+
+    def teardown(self) -> None:  # noqa: B027 - optional hook, not abstract
+        """Release resources at shutdown. Empty by default, as above."""
 
     @property
     def enabled(self) -> bool:
@@ -68,7 +72,7 @@ class Layer(ABC):
     # -- the actual work -------------------------------------------------
 
     @abstractmethod
-    def run(self, ctx: "PipelineContext") -> list[Finding]:
+    def run(self, ctx: PipelineContext) -> list[Finding]:
         """Inspect the context and return findings.
 
         Implementations may mutate ``ctx`` (that is how L0 publishes the
@@ -76,7 +80,7 @@ class Layer(ABC):
         set ``ctx.verdict.decision`` directly.
         """
 
-    def should_run(self, ctx: "PipelineContext") -> tuple[bool, str]:
+    def should_run(self, ctx: PipelineContext) -> tuple[bool, str]:
         """Cheap pre-check. Returning False records a skip, not a failure."""
         if not self.enabled:
             return False, getattr(self, "_disabled_reason", "disabled")
@@ -84,7 +88,7 @@ class Layer(ABC):
 
     # -- orchestration entry point --------------------------------------
 
-    def execute(self, ctx: "PipelineContext") -> tuple[list[Finding], LayerReport]:
+    def execute(self, ctx: PipelineContext) -> tuple[list[Finding], LayerReport]:
         """Run with timing, skip logic and error containment.
 
         The orchestrator calls this, never ``run`` directly.
@@ -106,7 +110,7 @@ class Layer(ABC):
             raise exc
         except LayerError:
             raise
-        except Exception as exc:  # noqa: BLE001 - containment is the point
+        except Exception as exc:
             report.error = f"{type(exc).__name__}: {exc}"
             report.duration_ms = (time.perf_counter() - started) * 1000.0
             raise LayerError(str(self.name), report.error) from exc
@@ -127,11 +131,11 @@ class NullLayer(Layer):
     admin replay view do not have to special-case a missing stage.
     """
 
-    def __init__(self, settings: "Settings", name: LayerName, phase: Phase, reason: str) -> None:
+    def __init__(self, settings: Settings, name: LayerName, phase: Phase, reason: str) -> None:
         super().__init__(settings)
         self.name = name
         self.phase = phase
         self.disable(reason)
 
-    def run(self, ctx: "PipelineContext") -> list[Finding]:
+    def run(self, ctx: PipelineContext) -> list[Finding]:
         return []

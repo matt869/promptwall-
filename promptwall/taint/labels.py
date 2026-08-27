@@ -12,8 +12,8 @@ a maliciousness score, is the primary signal.
 from __future__ import annotations
 
 from bisect import bisect_right
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field, replace
-from typing import Iterable, Iterator
 
 from ..constants import INSTRUCTION_AUTHORITY_FLOOR, TrustLevel
 
@@ -131,7 +131,7 @@ class TaintMap:
                     trimmed.append(left)
                 if right:
                     trimmed.append(right)
-            resolved = sorted(trimmed + [span], key=lambda s: s.start)
+            resolved = sorted([*trimmed, span], key=lambda s: s.start)
 
         # Fill gaps so the map stays total.
         filled: list[Span] = []
@@ -376,7 +376,7 @@ class OffsetMap:
 class OffsetMapBuilder:
     """Accumulates an OffsetMap while a transform emits output."""
 
-    __slots__ = ("_segments", "_new_cursor")
+    __slots__ = ("_new_cursor", "_segments")
 
     def __init__(self) -> None:
         self._segments: list[OffsetSegment] = []

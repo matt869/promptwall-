@@ -57,8 +57,8 @@ class ToolCall:
 class PipelineContext:
     """Everything a layer needs, and everywhere it puts what it found."""
 
-    settings: "Settings"
-    engine: "PolicyEngine"
+    settings: Settings
+    engine: PolicyEngine
     phase: Phase = Phase.INPUT
     request_id: str = field(default_factory=lambda: uuid.uuid4().hex[:16])
     session_id: str = ""
@@ -85,7 +85,7 @@ class PipelineContext:
 
     # --- results ---
     verdict: Verdict = field(default_factory=Verdict)
-    session: "SessionState | None" = None
+    session: SessionState | None = None
     #: Free-form layer-to-layer channel. Keys are namespaced by layer.
     scratch: dict[str, Any] = field(default_factory=dict)
 

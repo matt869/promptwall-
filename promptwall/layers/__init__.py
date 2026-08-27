@@ -3,7 +3,7 @@
 from .base import Layer, NullLayer
 from .l0_normalize import NormalizeLayer
 from .l1_heuristics import HeuristicsLayer
-from .l2_classifier import ClassifierLayer, extract_features, FEATURE_NAMES
+from .l2_classifier import FEATURE_NAMES, ClassifierLayer, extract_features
 from .l3_judge import JudgeLayer
 from .l4_tool_gate import ToolGateLayer
 from .l5_output_guard import OutputGuardLayer

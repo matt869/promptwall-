@@ -170,7 +170,7 @@ def build_store(settings) -> SessionStore:
     cfg = settings.session
     if cfg.backend == "redis":
         try:
-            from .redis_store import RedisSessionStore  # noqa: PLC0415
+            from .redis_store import RedisSessionStore
 
             return RedisSessionStore(cfg.redis_url, ttl_s=cfg.ttl_s)
         except ImportError:

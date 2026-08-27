@@ -22,9 +22,8 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any
 
-from ..constants import AttackFamily, Decision, LayerName, Phase, Severity, TrustLevel
+from ..constants import AttackFamily, Decision, LayerName, Phase, TrustLevel
 from ..pipeline.context import PipelineContext, ToolCall
 from ..pipeline.verdict import Finding
 from .base import Layer

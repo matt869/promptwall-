@@ -12,8 +12,9 @@ records, and it is the mechanism behind the benchmark's ablation runs.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from ..constants import LayerName
 from ..pipeline.context import ToolCall
@@ -81,7 +82,7 @@ def _apply_ablation(pipeline, keep: list[str]) -> None:
         saved[str(layer.name)] = layer.enabled
         if str(layer.name).lower() not in wanted:
             layer.disable("ablated for replay")
-    pipeline._ablation_saved = saved  # noqa: SLF001 - private by intent
+    pipeline._ablation_saved = saved
 
 
 def _restore(pipeline) -> None:
@@ -90,7 +91,7 @@ def _restore(pipeline) -> None:
         return
     for layer in pipeline.registry.all():
         if saved.get(str(layer.name)):
-            layer._enabled = True  # noqa: SLF001
+            layer._enabled = True
     del pipeline._ablation_saved
 
 

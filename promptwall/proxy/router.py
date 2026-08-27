@@ -31,17 +31,15 @@ from ..constants import (
     HEADER_REQUEST_ID,
     HEADER_RISK,
     HEADER_SESSION,
-    Decision,
 )
-from ..exceptions import BlockedError, PayloadTooLargeError, ValidationError
+from ..exceptions import PayloadTooLargeError, ValidationError
 from ..pipeline.context import ToolCall
 from ..proxy.providers import get_provider
 from ..proxy.schemas import BlockedResponse
 from ..proxy.streaming import StreamGuard
 from ..proxy.upstream import get_client
-from ..taint.spotlight import SpotlightMode
+from ..taint.spotlight import SpotlightMode, preamble
 from ..taint.spotlight import apply as spotlight_apply
-from ..taint.spotlight import preamble
 from ..telemetry.logging import bind, get_logger
 from ..telemetry.metrics import get_metrics
 from ..telemetry.tracing import annotate_verdict, span
@@ -276,8 +274,8 @@ async def _stream(request, provider, client, payload, ctx, pipeline) -> Streamin
         markdown defang runs here too, since an image beacon in a stream
         leaks exactly as readily as one in a buffered response.
         """
-        from ..detectors.sysprompt_leak import detect_leak  # noqa: PLC0415
-        from ..detectors.unsafe_markdown import scan_markdown  # noqa: PLC0415
+        from ..detectors.sysprompt_leak import detect_leak
+        from ..detectors.unsafe_markdown import scan_markdown
 
         result = engine.redact(text, output=True)
         guarded = result.text

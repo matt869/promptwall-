@@ -33,7 +33,7 @@ from typing import Any, Protocol
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from promptwall_client import PromptWallBlocked, PromptWallClient, trusted, untrusted  # noqa: E402
+from promptwall_client import PromptWallBlocked, PromptWallClient, trusted, untrusted
 
 
 class Retriever(Protocol):
@@ -153,7 +153,7 @@ def main() -> int:
     with PromptWallClient(gateway, api_key) as client:
         try:
             client.health()
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             print(f"cannot reach the gateway at {gateway}: {exc}")
             print("Start one with:  PW_UPSTREAM_PROVIDER=echo promptwall serve")
             return 1

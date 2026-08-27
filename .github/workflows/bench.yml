@@ -1,0 +1,137 @@
+name: Benchmark
+
+# The full measurement run, including the adaptive attacker, which is too
+# slow for every pull request. Weekly plus on demand.
+#
+# Scheduled deliberately: a defence degrades quietly as the world changes
+# around it, and the point of a recurring run is to notice.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"   # Mondays, 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      budget:
+        description: Mutations per attack for the adaptive attacker
+        default: "20"
+        required: false
+      update_baseline:
+        description: Open a PR updating the committed baseline
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  full:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e ".[dev,train]"
+
+      - name: generate corpora
+        run: python scripts/seed_datasets.py
+
+      - name: all defences plus ablations
+        run: |
+          python bench/harness/runner.py \
+            --defences no_defense,regex_only,rebuff,llama_guard,promptwall \
+            --ablations \
+            --out /tmp/results.json
+        env:
+          # Absent, llama_guard reports itself unavailable and is skipped
+          # rather than being replaced by a guess.
+          PW_BENCH_LLAMAGUARD_URL: ${{ secrets.LLAMAGUARD_URL }}
+          PW_BENCH_LLAMAGUARD_KEY: ${{ secrets.LLAMAGUARD_KEY }}
+
+      - name: adaptive attacker
+        run: |
+          python bench/adaptive_attacker.py \
+            --budget "${{ inputs.budget || '20' }}" \
+            --out /tmp/adaptive.json
+
+      - name: report
+        run: |
+          python bench/harness/report.py /tmp/results.json --out /tmp/report.md
+          cat /tmp/report.md >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo ""
+            echo "## Adaptive attacker"
+            echo ""
+            python - <<'PY'
+          import json
+          data = json.load(open("/tmp/adaptive.json"))
+          print(f"- attempts: {data['attempts']}")
+          print(f"- evaded: {data['evaded']} ({data['evasion_rate']:.1%})")
+          print(f"- mean mutations to evade: {data['mean_rounds_to_evade']}")
+          print("")
+          print("| operator | evasions |")
+          print("|---|---|")
+          for name, count in data["by_operator"].items():
+              print(f"| {name} | {count} |")
+          PY
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: compare against the committed baseline
+        continue-on-error: true
+        run: |
+          python scripts/bench_delta.py \
+            bench/results/2026-08-26/results.json /tmp/results.json
+
+      - name: train and evaluate the L2 model
+        continue-on-error: true
+        run: |
+          python models/train_classifier.py
+          python models/export_onnx.py
+          # Reports whether the trained model actually beats the built-in
+          # scorer on held-out data. On the shipped corpus it does not.
+          python models/eval_classifier.py >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmark-${{ github.run_number }}
+          path: |
+            /tmp/results.json
+            /tmp/adaptive.json
+            /tmp/report.md
+          retention-days: 90
+
+  baseline:
+    needs: full
+    if: inputs.update_baseline
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: benchmark-${{ github.run_number }}
+          path: /tmp/bench
+      - name: stage the new baseline
+        run: |
+          DEST="bench/results/$(date -u +%Y-%m-%d)"
+          mkdir -p "$DEST"
+          cp /tmp/bench/results.json "$DEST/results.json"
+          cp /tmp/bench/report.md "$DEST/report.md"
+      # A baseline change is a claim that the numbers legitimately moved, so
+      # it goes through review rather than straight to main.
+      - uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "Update benchmark baseline"
+          title: "Update benchmark baseline"
+          body: |
+            Automated baseline refresh from the scheduled benchmark run.
+
+            Review before merging: confirm the numbers moved for a reason you
+            can name. Merging this makes the new results the bar every future
+            pull request is measured against.
+          branch: bench/baseline-${{ github.run_number }}

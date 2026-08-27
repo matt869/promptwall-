@@ -19,7 +19,7 @@ baseline as partial and says which components ran.
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Any, ClassVar
 
 #: Phrases Rebuff-style heuristics weight, roughly by how diagnostic they are.
 HEURISTICS: dict[str, float] = {
@@ -72,8 +72,8 @@ class Rebuff:
         "Heuristic scoring plus known-attack similarity. "
         "LLM check and canary tokens not simulated."
     )
-    components = ["heuristics", "vector_similarity"]
-    missing_components = ["llm_check", "canary_tokens"]
+    components: ClassVar[list[str]] = ["heuristics", "vector_similarity"]
+    missing_components: ClassVar[list[str]] = ["llm_check", "canary_tokens"]
 
     def __init__(self, threshold: float = 0.75) -> None:
         self.threshold = threshold

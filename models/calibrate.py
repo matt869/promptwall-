@@ -25,9 +25,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from bench.harness.runner import load_corpus  # noqa: E402
-from models.train_classifier import payload_text  # noqa: E402
-from promptwall.layers.l2_classifier import (  # noqa: E402
+from bench.harness.runner import load_corpus
+from models.train_classifier import payload_text
+from promptwall.layers.l2_classifier import (
     FallbackScorer,
     OnnxScorer,
     extract_features,

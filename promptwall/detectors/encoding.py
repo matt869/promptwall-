@@ -18,6 +18,7 @@ from __future__ import annotations
 import base64
 import binascii
 import codecs
+import contextlib
 import html
 import math
 import re
@@ -249,10 +250,8 @@ def decode_layer(text: str, depth: int) -> list[Decoded]:
 
     for match in _PCT_RE.finditer(text):
         blob = match.group(0)
-        try:
+        with contextlib.suppress(UnicodeDecodeError, ValueError):
             _add("percent", urllib.parse.unquote(blob, errors="strict"), *match.span(), blob)
-        except (UnicodeDecodeError, ValueError):
-            pass
 
     for match in _ENTITY_RE.finditer(text):
         blob = match.group(0)

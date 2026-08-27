@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -29,7 +29,7 @@ else:  # pragma: no cover - script entry point
 
 
 def _bar(value: float, width: int = 18) -> str:
-    filled = int(round(max(0.0, min(1.0, value)) * width))
+    filled = round(max(0.0, min(1.0, value)) * width)
     return "#" * filled + "." * (width - filled)
 
 
@@ -41,7 +41,7 @@ def render_markdown(payload: dict[str, Any]) -> str:
     lines.append("# PromptWall benchmark")
     lines.append("")
     lines.append(
-        f"Generated {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} over "
+        f"Generated {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')} over "
         f"{corpus.get('records', 0)} records "
         f"({corpus.get('attacks', 0)} attack, "
         f"{corpus.get('records', 0) - corpus.get('attacks', 0)} benign)."

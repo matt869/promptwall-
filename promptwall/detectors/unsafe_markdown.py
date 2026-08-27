@@ -10,6 +10,7 @@ images, HTML tags with src/href, CSS url(), and form actions.
 
 from __future__ import annotations
 
+import contextlib
 import re
 from dataclasses import dataclass
 from urllib.parse import urlparse
@@ -103,10 +104,8 @@ def scan_markdown(
 
     def _check(kind: str, url: str, start: int, end: int, auto: bool) -> None:
         scheme = ""
-        try:
+        with contextlib.suppress(ValueError):
             scheme = (urlparse(url).scheme or "").lower()
-        except ValueError:
-            pass
         if scheme in _DANGEROUS_SCHEMES:
             hits.append(MarkdownHit(kind, url, start, end, f"{scheme}: scheme", auto))
             return

@@ -20,12 +20,11 @@ from __future__ import annotations
 
 import re
 
-from ..constants import AttackFamily, LayerName, Phase, Severity, TrustLevel
+from ..constants import LayerName, Phase, Severity, TrustLevel
 from ..pipeline.context import PipelineContext
 from ..pipeline.verdict import Finding
 from ..taint.labels import TaintMap
 from .base import Layer
-
 
 #: Metalinguistic framing: text that talks *about* a phrase rather than
 #: using it. "Translate this sentence: ...", "a user reported typing ...".

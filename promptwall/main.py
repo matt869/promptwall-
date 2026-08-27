@@ -227,7 +227,7 @@ def _cmd_check() -> int:
 
     try:
         pipeline = build_pipeline(settings)
-    except Exception as exc:  # noqa: BLE001 - the point is to report it
+    except Exception as exc:
         print(f"startup error: {exc}", file=sys.stderr)
         return 1
 
@@ -266,11 +266,11 @@ def _cmd_scan(args) -> int:
 
     from .constants import TrustLevel
 
-    text = (
-        open(args.path, encoding="utf-8", errors="replace").read()
-        if args.path
-        else sys.stdin.read()
-    )
+    if args.path:
+        with open(args.path, encoding="utf-8", errors="replace") as handle:
+            text = handle.read()
+    else:
+        text = sys.stdin.read()
     trust = {level.name.lower(): level for level in TrustLevel}.get(
         args.trust.lower(), TrustLevel.UNTRUSTED
     )

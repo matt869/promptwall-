@@ -24,8 +24,9 @@ Dependencies: httpx only.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from dataclasses import dataclass, field
-from typing import Any, Iterator
+from typing import Any
 
 import httpx
 
@@ -285,7 +286,7 @@ def _verdict_from_body(response: httpx.Response, fallback: Verdict) -> Verdict:
     try:
         error = response.json().get("error", {})
         details = error.get("promptwall", {})
-    except Exception:  # noqa: BLE001 - a non-JSON body is not worth failing over
+    except Exception:
         return fallback
     return Verdict(
         decision=details.get("decision", fallback.decision),

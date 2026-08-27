@@ -11,8 +11,9 @@ audit log is the one place that is allowed to happen.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Any, Iterator
+from typing import Any
 
 try:  # pragma: no cover - exercised only when OTel is installed
     from opentelemetry import trace
@@ -50,7 +51,7 @@ def configure(settings) -> bool:
 
 
 def _version() -> str:
-    from .. import __version__  # noqa: PLC0415
+    from .. import __version__
 
     return __version__
 

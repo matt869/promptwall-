@@ -1,0 +1,133 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to release
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Nothing is published before the full suite passes on the exact commit
+  # being released. A security gateway that ships an unverified build has
+  # already undermined the argument for using it.
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      - run: mypy promptwall
+      - run: pytest -q
+      - run: python -m promptwall.main check
+        env:
+          PW_AUTH_REQUIRED: "false"
+      - name: benchmark regression gate
+        run: |
+          python scripts/seed_datasets.py
+          python bench/harness/runner.py --quiet --out /tmp/results.json
+          python scripts/bench_delta.py \
+            bench/results/2026-08-26/results.json /tmp/results.json --only promptwall
+      - name: version matches the tag
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          TAG="${TAG:-${{ inputs.tag }}}"
+          TAG="${TAG#v}"
+          VERSION=$(python -c "import promptwall; print(promptwall.__version__)")
+          echo "tag=$TAG package=$VERSION"
+          if [ "$TAG" != "$VERSION" ]; then
+            echo "::error::tag $TAG does not match promptwall.__version__ $VERSION"
+            exit 1
+          fi
+
+  build:
+    needs: verify
+    runs-on: ubuntu-latest
+    outputs:
+      hashes: ${{ steps.hash.outputs.hashes }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install build
+      - run: python -m build
+      - name: record artefact digests
+        id: hash
+        run: echo "hashes=$(sha256sum dist/* | base64 -w0)" >> "$GITHUB_OUTPUT"
+      - run: |
+          echo '## Artefacts' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          sha256sum dist/* >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  container:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  publish:
+    needs: [build, container]
+    runs-on: ubuntu-latest
+    environment: release      # requires an approval before anything is public
+    permissions:
+      contents: write
+      id-token: write         # trusted publishing; no long-lived PyPI token
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          body: |
+            See [CHANGELOG.md](CHANGELOG.md).
+
+            **Alpha.** Interfaces are still moving and this has not had an
+            independent security review. Start in `PW_MODE=monitor` and read
+            [docs/deployment.md](docs/deployment.md) before enforcing.

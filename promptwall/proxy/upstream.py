@@ -15,10 +15,12 @@ error the caller can see.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json as _json
 import random
 import time
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
 import httpx
 
@@ -49,7 +51,7 @@ def _provider_message(response: httpx.Response, body: bytes | None = None) -> st
                 return f"provider error: {error['message']}"[:500]
             if isinstance(error, str):
                 return f"provider error: {error}"[:500]
-    except Exception:  # noqa: BLE001 - best effort only
+    except Exception:
         pass
     return f"provider returned HTTP {response.status_code}"
 
@@ -109,10 +111,8 @@ class UpstreamClient:
         if response is not None:
             header = response.headers.get("retry-after")
             if header:
-                try:
+                with contextlib.suppress(ValueError):
                     delay = min(30.0, float(header))
-                except ValueError:
-                    pass
         await asyncio.sleep(delay * (0.5 + random.random()))
 
     async def _send(

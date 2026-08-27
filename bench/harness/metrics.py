@@ -21,8 +21,9 @@ What matters, in order:
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Sequence
+from typing import Any
 
 
 @dataclass(slots=True)

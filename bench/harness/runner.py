@@ -14,8 +14,9 @@ from __future__ import annotations
 import argparse
 import json
 import time
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Iterator, Protocol
+from typing import Any, Protocol
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA = ROOT / "bench" / "datasets"
@@ -26,7 +27,7 @@ import sys
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from bench.harness.metrics import Outcome, Results  # noqa: E402
+from bench.harness.metrics import Outcome, Results
 
 
 class Defence(Protocol):
@@ -168,7 +169,7 @@ def run_defence(defence: Defence, corpus: list[dict], *, warmup: int = 5) -> Res
         for record in corpus[:warmup]:
             try:
                 defence.evaluate(record)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 break
 
         for record in corpus:
@@ -176,7 +177,7 @@ def run_defence(defence: Defence, corpus: list[dict], *, warmup: int = 5) -> Res
             try:
                 predicted, risk, decision = defence.evaluate(record)
                 error = ""
-            except Exception as exc:  # noqa: BLE001 - one bad record must not end the run
+            except Exception as exc:
                 predicted, risk, decision = 0, 0.0, "error"
                 error = f"{type(exc).__name__}: {exc}"
             elapsed = (time.perf_counter() - started) * 1000.0

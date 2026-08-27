@@ -1,0 +1,50 @@
+# Default-deny network policy.
+#
+# PromptWall holds the provider credential and sees every prompt. Restricting
+# what it can reach limits what an attacker gains from an SSRF or an RCE in
+# the gateway itself -- which matters more here than for an ordinary service,
+# because this one is deliberately fed hostile input all day.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: promptwall
+spec:
+  podSelector:
+    matchLabels: { app: promptwall }
+  policyTypes: [Ingress, Egress]
+
+  ingress:
+    # Only the ingress controller and Prometheus may reach the gateway.
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: ingress-nginx }
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: monitoring }
+      ports:
+        - { protocol: TCP, port: 8080 }
+
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { app: promptwall-redis }
+      ports:
+        - { protocol: TCP, port: 6379 }
+
+    - ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+
+    # HTTPS to the model provider only. Cluster-internal ranges and the cloud
+    # metadata endpoint are excluded: the L4 policy already refuses tool calls
+    # aimed at 169.254.169.254, and this is the second line for anything that
+    # gets past it.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
+      ports:
+        - { protocol: TCP, port: 443 }

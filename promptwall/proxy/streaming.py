@@ -20,8 +20,9 @@ PW_STREAMING_GUARD can be set to require buffering for sensitive routes.
 from __future__ import annotations
 
 import json
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator, Callable
+from typing import Any
 
 #: Characters withheld from the client until enough context follows them.
 #: Comfortably longer than the longest credential pattern in redaction.yaml.

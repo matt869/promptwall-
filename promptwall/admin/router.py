@@ -85,7 +85,10 @@ async def stats(request: Request) -> dict[str, Any]:
 @router.post("/replay")
 async def replay(
     request: Request,
-    body: dict[str, Any] = Body(...),
+    # B008 is the correct warning in general, but Body(...) in a default
+    # is how FastAPI declares a required JSON body -- it is read by the
+    # framework at import time, not evaluated per call.
+    body: dict[str, Any] = Body(...),  # noqa: B008
 ) -> dict[str, Any]:
     """Run a conversation through the pipeline without calling the provider.
 

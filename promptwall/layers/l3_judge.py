@@ -31,14 +31,13 @@ from typing import Any
 
 import httpx
 
-from ..constants import AttackFamily, LayerName, Phase, Severity
+from ..constants import AttackFamily, LayerName, Phase, Severity, TrustLevel
 from ..exceptions import LayerError
 from ..pipeline.context import PipelineContext
 from ..pipeline.verdict import Finding, aggregate_risk
+from ..taint.labels import TaintMap
 from ..taint.spotlight import SpotlightMode, neutralize_sentinels
 from ..taint.spotlight import apply as spotlight_apply
-from ..taint.labels import TaintMap
-from ..constants import TrustLevel
 from .base import Layer
 
 JUDGE_SYSTEM_PROMPT = """\

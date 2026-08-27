@@ -1,6 +1,6 @@
 # PromptWall benchmark
 
-Generated 2026-08-27 07:03 UTC over 150 records (106 attack, 44 benign).
+Generated 2026-08-27 07:36 UTC over 150 records (106 attack, 44 benign).
 
 > These corpora are templated and small. Treat the intervals, not the point estimates, as the claim. See `docs/benchmark-methodology.md` for what this does and does not measure.
 
@@ -10,8 +10,8 @@ Generated 2026-08-27 07:03 UTC over 150 records (106 attack, 44 benign).
 |---|---|---|---|---|---|---|
 | `no_defense` | 0.000 | 0.00–0.04 | 0.000 | 0.000 | 0.000 | 0.00 ms |
 | `regex_only` | 0.311 | 0.23–0.40 | 0.286 | 0.667 | 0.443 | 0.04 ms |
-| `rebuff_like` | 0.217 | 0.15–0.30 | 0.114 | 0.267 | 0.346 | 0.05 ms |
-| `promptwall` | 0.924 | 0.86–0.96 | 0.029 | 0.067 | 0.956 | 1.96 ms |
+| `rebuff_like` | 0.217 | 0.15–0.30 | 0.114 | 0.267 | 0.346 | 0.02 ms |
+| `promptwall` | 0.924 | 0.86–0.96 | 0.029 | 0.067 | 0.956 | 1.87 ms |
 
 ## Recall by attack family
 
@@ -128,5 +128,5 @@ tool-0105
 |---|---|---|---|---|---|
 | `no_defense` | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 |
 | `regex_only` | 0.02 | 0.01 | 0.04 | 0.04 | 0.04 |
-| `rebuff_like` | 0.02 | 0.02 | 0.04 | 0.05 | 0.06 |
-| `promptwall` | 0.73 | 0.61 | 1.26 | 1.96 | 2.16 |
+| `rebuff_like` | 0.01 | 0.01 | 0.02 | 0.02 | 0.02 |
+| `promptwall` | 0.68 | 0.53 | 1.08 | 1.87 | 1.88 |

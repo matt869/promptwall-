@@ -1,0 +1,345 @@
+{
+  "title": "PromptWall",
+  "uid": "promptwall-overview",
+  "tags": [
+    "promptwall",
+    "security",
+    "llm"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "DS_PROMETHEUS",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {},
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 100,
+      "type": "row",
+      "title": "Traffic and decisions",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 1,
+      "title": "Decisions per second",
+      "description": "In monitor mode, blocks appear here but nothing is actually stopped. Check the advisory label.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "expr": "sum by (decision) (rate(promptwall_requests_total[5m]))",
+          "legendFormat": "{{decision}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "title": "Advisory vs enforced",
+      "description": "advisory=true means monitor mode: PromptWall objected and the request went through anyway.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "expr": "sum by (advisory) (rate(promptwall_requests_total{decision!=\"allow\"}[5m]))",
+          "legendFormat": "advisory={{advisory}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "title": "Pipeline latency p50 / p95 / p99",
+      "description": "The tail is what matters. A gateway judged on its mean latency is judged wrongly.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le, phase) (rate(promptwall_pipeline_seconds_bucket[5m])))",
+          "legendFormat": "p99 {{phase}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "title": "Per-layer latency p99",
+      "description": "",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le, layer) (rate(promptwall_layer_seconds_bucket[5m])))",
+          "legendFormat": "{{layer}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "title": "Findings by family",
+      "description": "A shift in the mix is worth investigating even when the total is flat.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "expr": "sum by (family) (rate(promptwall_findings_total[15m]))",
+          "legendFormat": "{{family}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "title": "Top firing rules",
+      "description": "A rule that suddenly dominates is usually a false positive, not an attack wave.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (rule_id) (rate(promptwall_rule_hits_total[1h])))",
+          "legendFormat": "{{rule_id}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "title": "Tool authorization outcomes",
+      "description": "The layer the guarantee rests on. would_block means monitor mode.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "expr": "sum by (decision) (rate(promptwall_tool_decisions_total[5m]))",
+          "legendFormat": "{{decision}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 8,
+      "title": "Layers skipped by reason",
+      "description": "Sustained budget skips mean detection is silently degrading under load.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "expr": "sum by (layer, reason) (rate(promptwall_layer_skips_total[5m]))",
+          "legendFormat": "{{layer}} {{reason}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 9,
+      "title": "Risk score distribution",
+      "description": "Watch for mass drifting toward the thresholds before it crosses them.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 32,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "expr": "sum by (le) (rate(promptwall_risk_score_bucket[15m]))",
+          "legendFormat": "{{le}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 10,
+      "title": "Upstream latency and errors",
+      "description": "",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 32,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, outcome) (rate(promptwall_upstream_seconds_bucket[5m])))",
+          "legendFormat": "p95 {{outcome}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      }
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "name": "Policy reloads",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "expr": "changes(promptwall_policy_reloads_total[5m]) > 0",
+        "iconColor": "blue",
+        "enable": true
+      }
+    ]
+  }
+}

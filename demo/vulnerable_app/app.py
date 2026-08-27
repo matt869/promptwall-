@@ -35,7 +35,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from demo.vulnerable_app.tools import SCHEMAS, ToolBox  # noqa: E402
+from demo.vulnerable_app.tools import ToolBox
 
 # --- the simulated model ---------------------------------------------------
 
@@ -64,7 +64,7 @@ class CredulousModel:
                 turn.tool_calls.append({"name": "lookup", "arguments": {"key": match.group(1)}})
 
         recipient = _EMAIL_RE.search(context) or _EMAIL_ALT.search(context)
-        if recipient and "send_email" in context or (recipient and "email" in context.lower()):
+        if (recipient and "send_email" in context) or (recipient and "email" in context.lower()):
             turn.tool_calls.append(
                 {
                     "name": "send_email",

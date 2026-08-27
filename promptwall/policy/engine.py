@@ -7,9 +7,9 @@ share across threads, and trivially swappable when policy reloads.
 
 from __future__ import annotations
 
-import re
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Iterable
+from typing import Any
 
 import regex
 
@@ -28,7 +28,6 @@ from .schema import (
     RedactionRule,
     Signature,
     ToolRule,
-    compile_pattern,
 )
 
 #: Per-pattern wall-clock ceiling. A hostile or merely sloppy rule must not

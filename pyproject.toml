@@ -71,6 +71,30 @@ target-version = "py311"
 select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
 ignore = ["E501"]
 
+[tool.ruff.lint.per-file-ignores]
+# These files contain homoglyphs, zero-width characters and the Unicode Tag
+# block ON PURPOSE -- they are the attack payloads and the folding tables the
+# defence is built from. RUF001/RUF003 flag exactly the thing that has to be
+# there, so "fixing" it would delete the test coverage.
+"promptwall/detectors/encoding.py" = ["RUF001", "RUF003"]
+"promptwall/taint/spotlight.py" = ["RUF001", "RUF003"]
+"promptwall/constants.py" = ["RUF001", "RUF003"]
+"scripts/seed_datasets.py" = ["RUF001", "RUF003"]
+"bench/adaptive_attacker.py" = ["RUF001", "RUF003"]
+"tests/unit/test_taint.py" = ["RUF001", "RUF003"]
+"tests/unit/test_detectors.py" = ["RUF001", "RUF003"]
+"tests/unit/test_pipeline.py" = ["RUF001", "RUF003"]
+# Smart quotes are listed deliberately: they are the quote characters a
+# real document actually contains, and the whole point of the tuple.
+"promptwall/layers/l1_heuristics.py" = ["RUF001", "RUF003"]
+# En dashes are intentional typography in generated Markdown.
+"bench/harness/report.py" = ["RUF001", "RUF003", "E402"]
+# Benchmark and model scripts adjust sys.path before importing the package.
+"bench/harness/runner.py" = ["E402"]
+"models/*.py" = ["E402"]
+"sdk/python/examples/*.py" = ["E402"]
+"demo/vulnerable_app/*.py" = ["E402"]
+
 [tool.mypy]
 python_version = "3.11"
 warn_unused_ignores = true

@@ -21,7 +21,6 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
-import os
 import threading
 import time
 from pathlib import Path
@@ -195,7 +194,7 @@ def get_audit(settings=None) -> AuditLog:
     global _audit
     if _audit is None:
         if settings is None:
-            from ..config import get_settings  # noqa: PLC0415
+            from ..config import get_settings
 
             settings = get_settings()
         cfg = settings.telemetry

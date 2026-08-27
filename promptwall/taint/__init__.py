@@ -8,7 +8,14 @@ from .labels import (
     TaintMap,
     merge_maps,
 )
-from .spotlight import SpotlightMode, SpotlightResult, apply, datamark, neutralize_sentinels, preamble
+from .spotlight import (
+    SpotlightMode,
+    SpotlightResult,
+    apply,
+    datamark,
+    neutralize_sentinels,
+    preamble,
+)
 from .tracker import (
     ROLE_TRUST,
     TrackedMessage,
@@ -22,10 +29,10 @@ from .tracker import (
 )
 
 __all__ = [
+    "ROLE_TRUST",
     "OffsetMap",
     "OffsetMapBuilder",
     "OffsetSegment",
-    "ROLE_TRUST",
     "Span",
     "SpotlightMode",
     "SpotlightResult",

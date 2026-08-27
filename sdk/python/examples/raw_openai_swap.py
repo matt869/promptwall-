@@ -29,7 +29,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from promptwall_client import (  # noqa: E402
+from promptwall_client import (
     PromptWallBlocked,
     PromptWallClient,
     tool_result,
@@ -94,7 +94,7 @@ def main() -> int:
     with PromptWallClient(GATEWAY, API_KEY, model="gpt-4o-mini") as client:
         try:
             ready, status = client.ready()
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             print(f"\ncannot reach the gateway at {GATEWAY}: {exc}")
             print("Start one with:  PW_UPSTREAM_PROVIDER=echo promptwall serve")
             return 1

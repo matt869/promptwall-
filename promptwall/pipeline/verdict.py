@@ -23,7 +23,6 @@ from ..constants import (
     Decision,
     LayerName,
     Phase,
-    Severity,
     escalate,
 )
 from ..findings import Finding, aggregate_risk

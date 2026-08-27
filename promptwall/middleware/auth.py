@@ -24,8 +24,8 @@ from starlette.requests import Request
 
 from ..config import fingerprint
 from ..exceptions import AuthError, ForbiddenError, PromptWallError
-from .error_handler import render_error
 from ..telemetry.logging import get_logger
+from .error_handler import render_error
 
 log = get_logger("http.auth")
 

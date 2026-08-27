@@ -13,7 +13,7 @@ readiness probe instead of as a 500 on the first request.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 from ..constants import LAYER_ORDER, LayerName, Phase
 from .base import Layer, NullLayer
@@ -50,7 +50,7 @@ _PHASES: dict[LayerName, Phase] = {
 class LayerRegistry:
     """Constructed layers, indexed by name and grouped by phase."""
 
-    def __init__(self, settings: "Settings", *, only: list[LayerName] | None = None) -> None:
+    def __init__(self, settings: Settings, *, only: list[LayerName] | None = None) -> None:
         self.settings = settings
         self._layers: dict[LayerName, Layer] = {}
         self._build(only)
@@ -68,7 +68,7 @@ class LayerRegistry:
                 layer = cls(self.settings)
                 layer.setup()
                 self._layers[name] = layer
-            except Exception as exc:  # noqa: BLE001 - startup must not abort
+            except Exception as exc:
                 log.error("layer %s failed to initialize: %s", name, exc, exc_info=True)
                 self._layers[name] = NullLayer(
                     self.settings, name, _PHASES[name], f"init failed: {exc}"
@@ -93,7 +93,7 @@ class LayerRegistry:
         for layer in self._layers.values():
             try:
                 layer.teardown()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 log.warning("layer %s raised during teardown", layer.name, exc_info=True)
 
     def status(self) -> dict[str, dict[str, object]]:
@@ -129,5 +129,5 @@ class LayerRegistry:
         )
 
 
-def build_registry(settings: "Settings", **kwargs) -> LayerRegistry:
+def build_registry(settings: Settings, **kwargs) -> LayerRegistry:
     return LayerRegistry(settings, **kwargs)

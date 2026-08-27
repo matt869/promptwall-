@@ -14,8 +14,8 @@ from .schema import (
 )
 
 __all__ = [
-    "ArgRule",
     "DEFAULT_RULES_DIR",
+    "ArgRule",
     "PolicyBundle",
     "PolicyEngine",
     "PolicyStore",

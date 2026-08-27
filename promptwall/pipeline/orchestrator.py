@@ -19,10 +19,10 @@ Two behaviours are worth reading carefully:
 from __future__ import annotations
 
 import logging
-import time
-from typing import TYPE_CHECKING, Any, Sequence
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any
 
-from ..constants import Decision, LayerName, Phase, TrustLevel
+from ..constants import Decision, Phase
 from ..exceptions import BudgetExhausted, LayerError
 from ..policy.engine import PolicyEngine
 from ..taint.tracker import flatten, track_messages
@@ -45,10 +45,10 @@ class Pipeline:
 
     def __init__(
         self,
-        settings: "Settings",
-        registry: "LayerRegistry",
-        policy_store: "PolicyStore",
-        session_store: "SessionStore | None" = None,
+        settings: Settings,
+        registry: LayerRegistry,
+        policy_store: PolicyStore,
+        session_store: SessionStore | None = None,
         cache: VerdictCache | None = None,
     ) -> None:
         self.settings = settings
@@ -170,7 +170,7 @@ class Pipeline:
             return None
         state = self.session_store.get(session_id)
         if state is None:
-            from ..session.store import SessionState  # noqa: PLC0415
+            from ..session.store import SessionState
 
             state = SessionState(session_id=session_id)
         return state
@@ -221,7 +221,7 @@ class Pipeline:
             ctx.verdict.record(report)
             self._handle_failure(ctx, layer, exc)
             return
-        except Exception as exc:  # noqa: BLE001 - a layer must never 500 the gateway
+        except Exception as exc:
             log.exception("layer %s raised an unhandled exception", layer.name)
             ctx.verdict.record(
                 LayerReport(layer=layer.name, ran=False, error=f"{type(exc).__name__}: {exc}")
@@ -272,11 +272,11 @@ class Pipeline:
         }
 
 
-def build_pipeline(settings: "Settings") -> Pipeline:
+def build_pipeline(settings: Settings) -> Pipeline:
     """Construct a fully wired pipeline. The normal entry point."""
-    from ..layers.registry import build_registry  # noqa: PLC0415
-    from ..policy.loader import get_store  # noqa: PLC0415
-    from ..session.store import build_store  # noqa: PLC0415
+    from ..layers.registry import build_registry
+    from ..policy.loader import get_store
+    from ..session.store import build_store
 
     return Pipeline(
         settings=settings,

@@ -337,7 +337,7 @@ def build_multiturn(rng: random.Random) -> list[dict]:
     for i, ladder in enumerate(ladders, start=1):
         messages: list[dict] = [{"role": "system", "content": "You are a helpful assistant."}]
         for turn, text in enumerate(ladder, start=1):
-            messages = messages + [{"role": "user", "content": text}]
+            messages = [*messages, {"role": "user", "content": text}]
             out.append(
                 _record(
                     f"multiturn-{i:02d}-{turn:02d}",
@@ -357,7 +357,7 @@ def build_multiturn(rng: random.Random) -> list[dict]:
                     score=turn == len(ladder),
                 )
             )
-            messages = messages + [{"role": "assistant", "content": "Sure, happy to help."}]
+            messages = [*messages, {"role": "assistant", "content": "Sure, happy to help."}]
     return out
 
 

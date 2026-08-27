@@ -1,0 +1,49 @@
+# Fast checks only. A slow pre-commit hook gets bypassed with --no-verify,
+# and a hook that is routinely bypassed protects nothing.
+#
+#   pre-commit install
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        # Policy files are validated properly by the schema hook below.
+        args: [--allow-multiple-documents]
+      - id: check-json
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      - id: detect-private-key
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.5.7
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      # Policy is data, and invalid data is a silently missing security rule.
+      # Catching it here rather than at deploy time is worth the second it
+      # costs.
+      - id: validate-policy
+        name: validate policy files
+        entry: python -c "import sys; sys.path.insert(0,'.'); from promptwall.policy.loader import load_bundle; b=load_bundle(); print('policy ok:', b.summary())"
+        language: system
+        files: ^promptwall/policy/rules/.*\.(yaml|yml)$
+        pass_filenames: false
+
+      # Prompt content must never reach the application log. This catches the
+      # obvious mistake; it is not a substitute for review.
+      - id: no-content-logging
+        name: check for prompt content in log calls
+        entry: bash -c 'if grep -rnE "log\.(debug|info|warning|error)\(.*(raw_text|messages|prompt=|content=)" promptwall/ --include="*.py"; then echo "prompt content must not be logged - see telemetry/logging.py"; exit 1; fi'
+        language: system
+        files: ^promptwall/.*\.py$
+        pass_filenames: false
