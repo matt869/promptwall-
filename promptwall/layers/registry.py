@@ -104,6 +104,13 @@ class LayerRegistry:
                 "phase": layer.phase.value,
                 "class": type(layer).__name__,
                 "reason": getattr(layer, "_disabled_reason", ""),
+                # L2 reports which scorer is live; operators need to know
+                # whether a trained artifact or the built-in weights are in use.
+                **(
+                    {"scorer": layer.scorer.kind}
+                    if hasattr(layer, "scorer")
+                    else {}
+                ),
             }
             for name, layer in self._layers.items()
         }

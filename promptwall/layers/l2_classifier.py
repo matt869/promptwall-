@@ -16,6 +16,7 @@ rather than quietly presenting itself as the trained model.
 
 from __future__ import annotations
 
+import logging
 import math
 import re
 from pathlib import Path
@@ -268,6 +269,18 @@ class ClassifierLayer(Layer):
         if path.is_file():
             try:
                 self.scorer = OnnxScorer(path)
+                # Loud on purpose. A trained model that was never evaluated
+                # against the built-in scorer can be *worse* than it -- on a
+                # small or unrepresentative corpus it learns artifacts, and
+                # the failure mode is silent false positives on ordinary
+                # traffic. Verify with models/eval_classifier.py.
+                logging.getLogger("promptwall.layers").warning(
+                    "L2 is using the trained model at %s. Confirm it beats the "
+                    "built-in scorer on your own traffic: python "
+                    "models/eval_classifier.py --model %s",
+                    path,
+                    path,
+                )
                 return
             except Exception as exc:  # noqa: BLE001 - startup diagnostics
                 if not cfg.allow_fallback:
