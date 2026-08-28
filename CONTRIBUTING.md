@@ -32,7 +32,7 @@ catching three attack families, and no unit test notices.
 
 ```bash
 python bench/harness/runner.py --out /tmp/after.json
-python scripts/bench_delta.py bench/results/2026-08-26/results.json /tmp/after.json
+python scripts/bench_delta.py bench/results/2026-08-28/results.json /tmp/after.json
 ```
 
 `bench_delta` fails on a recall drop and prints the newly-missed record ids.

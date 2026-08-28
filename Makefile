@@ -7,7 +7,7 @@
 .DEFAULT_GOAL := help
 SHELL := /bin/bash
 PY ?= python
-BASELINE ?= bench/results/2026-08-26/results.json
+BASELINE ?= bench/results/2026-08-28/results.json
 
 .PHONY: help
 help: ## Show this help

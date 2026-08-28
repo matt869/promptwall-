@@ -41,6 +41,12 @@ class ConversationLayer(Layer):
             had_untrusted=ctx.has_untrusted,
             tools=[call.name for call in ctx.tool_calls],
         )
+        # Snapshot before the update, because update() folds *this* turn's
+        # families into the sticky set. Comparing against the post-update set
+        # would report a repeat the first time a family ever appeared -- a
+        # signal that is true of almost every interesting turn and therefore
+        # worth nothing.
+        attempted_before = {f for f in state.flags if f.startswith("attempted_")}
         assessment = risk_score.update(state, turn)
         ctx.note("l6.session", assessment)
 
@@ -98,21 +104,34 @@ class ConversationLayer(Layer):
 
         sticky = [f for f in assessment.flags if f.startswith("attempted_")]
         if sticky and ctx.verdict.risk > 0:
+            # Whether this turn is *the same* attack again is the difference
+            # between two very different situations, and weighting them alike
+            # was letting the quiet kind of crescendo through. A session that
+            # asked about the guidelines, asked for a paraphrase, then asked
+            # for them verbatim is three prompt-extraction attempts wearing
+            # progressively politer clothing; no single turn earns a block,
+            # and the repetition is the whole of the evidence.
+            repeated = sorted(attempted_before & risk_score.flags_for(ctx.verdict.families))
             findings.append(
                 Finding(
                     layer=self.name,
                     rule_id="l6.prior_attempts",
-                    message=f"session previously attempted: {', '.join(sticky)}",
-                    severity=Severity.MEDIUM,
+                    message=(
+                        f"session is repeating: {', '.join(repeated)}"
+                        if repeated
+                        else f"session previously attempted: {', '.join(sticky)}"
+                    ),
+                    severity=Severity.HIGH if repeated else Severity.MEDIUM,
                     family=AttackFamily.MULTITURN,
                     trust=TrustLevel.THIRD_PARTY,
                     source="session",
-                    confidence=0.7,
-                    # Small weight on purpose. History is corroboration for a
-                    # turn that already looks suspicious, not evidence on its
-                    # own -- otherwise one bad turn poisons the whole session.
-                    weight=0.15,
-                    meta={"flags": sticky},
+                    confidence=0.85 if repeated else 0.7,
+                    # An unrelated bad turn earlier is weak corroboration and
+                    # keeps its small weight, so one bad turn still cannot
+                    # poison a whole session. The same family twice is not
+                    # weak, and is what a crescendo looks like from inside.
+                    weight=0.45 if repeated else 0.15,
+                    meta={"flags": sticky, "repeated": repeated},
                 )
             )
 

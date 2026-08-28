@@ -20,7 +20,12 @@ signatures:
     # trailing noun is optional for them ("disregard the above and ...").
     # It stays required for the adjective-only words, where dropping it
     # would match ordinary prose like "ignore previous versions".
-    pattern: '(?:ignore|disregard|forget|override)\s+(?:all\s+|any\s+|the\s+)?(?:(?:previous|prior|earlier|last)\s+(?:instruction|prompt|direction|rule|command|message|context)s?|(?:above|preceding|foregoing)(?:\s+(?:instruction|prompt|direction|rule|command|message|context)s?)?)'
+    #
+    # The bare form is additionally required to end the clause. Without that,
+    # "disregard the above draft and use the second one" -- an ordinary
+    # editing request -- matched, and a rule that fires on ordinary editing
+    # requests is a rule an operator turns off.
+    pattern: '(?:ignore|disregard|forget|override)\s+(?:all\s+|any\s+|the\s+)?(?:(?:previous|prior|earlier|last)\s+(?:instruction|prompt|direction|rule|command|message|context)s?|(?:above|preceding|foregoing)(?:\s+(?:instruction|prompt|direction|rule|command|message|context)s?\b|(?=\s*(?:[,.;:!?]|$|and\b|then\b|now\b|instead\b))))'
     tags: [classic, high-signal]
 
   - id: io.ignore_everything
@@ -122,6 +127,28 @@ signatures:
     pattern: '(?:everything\s+(?:above|before)\s+(?:this|the)\s+(?:line|point|message)|the\s+text\s+between\s+.{0,20}(?:tags|delimiters|markers))'
     tags: [leak, probe]
 
+  - id: leak.own_delimiters
+    description: Names the assistant's own instruction fencing.
+    family: sysprompt_leak
+    severity: high
+    # Distinct from leak.delimiter_probe, which stays medium because "the text
+    # between the <p> tags" is an ordinary extraction request. Naming the
+    # *assistant's* instruction delimiters is not: there is no reason to refer
+    # to them except to find out what they enclose.
+    pattern: '(?:your|the)\s+(?:instruction|system|prompt|context)\s+(?:delimiter|marker|fence|boundar|separator|wrapper)\w*'
+    tags: [leak, probe, high-signal]
+
+  - id: leak.quote_verbatim
+    description: Anaphoric request to reproduce earlier text word for word.
+    family: sysprompt_leak
+    severity: medium
+    # Medium on purpose. "Quote that exactly" is a legitimate thing to ask
+    # about a document, so this earns its keep as corroboration -- it is what
+    # turns a crescendo's innocuous-looking final turn into a detection once
+    # L6 has watched the ladder climb toward the system prompt.
+    pattern: '(?:quote|reproduce|repeat|recite|output|print)\s+(?:them|those|these|it|that)\s+(?:exactly|verbatim|word\s+for\s+word|precisely)\b|\bas\s+(?:they|it)\s+(?:were|was)\s+(?:written|given|provided|phrased)\s+to\s+you'
+    tags: [leak, multiturn]
+
   # --- exfiltration ---------------------------------------------------------
   - id: exf.markdown_image_beacon
     description: Markdown image whose URL carries a query payload.
@@ -151,6 +178,39 @@ signatures:
     pattern: '(?:append|encode|include|embed|add|concatenate)\s+(?:the\s+)?[^.\n]{0,40}?(?:secret|key|token|password|conversation|history|context|data|summary)[^.\n]{0,40}?\b(?:to|in|into|onto)\s+(?:the\s+)?(?:url|link|query|image|address|endpoint)'
     tags: [exfil]
 
+  - id: exf.recipient_address
+    description: Instruction to send captured context to a named mailbox.
+    family: exfiltration
+    severity: critical
+    # exf.send_data_to_url covers hosts and URLs; a bare email address slipped
+    # past it, because the address form has no dot before the @.
+    #
+    # The object list is deliberately narrow -- the model's own context and
+    # credentials, not documents in general. "Send the meeting transcript to
+    # notes@ourcompany.com" is a user asking for their own work to be mailed
+    # somewhere, and it is indistinguishable in text from the attack; only
+    # authority separates them, which is ADR 002's entire argument and L4's
+    # job, not a signature's. Widening this rule to catch that shape blocked
+    # ordinary mail requests, so it stays narrow and L4 holds the line.
+    pattern: '(?:send|forward|email|e-?mail|mail|deliver|share|cc|bcc|copy|transmit|relay|exfiltrate)\s+(?:\w+\s+){0,3}?(?:(?:conversation|chat|message|session)s?\s*(?:history|transcript|log|thread|so\s+far)?|(?:system\s+)?prompt|context\s+window|credentials?|secrets?|api\s+keys?|passwords?|everything\s+(?:above|so\s+far))\b[^.\n]{0,60}?\bto\s+[\w.+-]+@[\w-]+\.[a-z]{2,}'
+    tags: [exfil, recipient]
+
+  - id: exf.cloud_metadata
+    description: Reference to a cloud instance metadata endpoint.
+    family: exfiltration
+    severity: critical
+    # The link-local metadata service hands out instance credentials to
+    # anything that can make it issue a request. It has no legitimate reason
+    # to appear in traffic an assistant is being asked to act on.
+    # Scoped to a *retrieval* of the endpoint, not a mention of it. "What is
+    # the 169.254.169.254 address used for in AWS?" is a question an engineer
+    # asks on their first week, and blocking it teaches them to route around
+    # the gateway.
+    pattern: '(?:https?://|curl\s+|wget\s+|fetch\s+|GET\s+|request\s+(?:to\s+|against\s+)?)[^\s\n]{0,20}?(?:169\.254\.169\.254|169\.254\.170\.2|100\.100\.100\.200|metadata\.google\.internal)|/latest/meta-data/|/computeMetadata/v1/'
+    ignore_case: false
+    quotable: false
+    tags: [exfil, ssrf, high-signal]
+
   # --- tool abuse -----------------------------------------------------------
   - id: tool.invoke_directive
     description: Untrusted content instructing a specific tool call.
@@ -178,6 +238,50 @@ signatures:
     pattern: '(?:delete|drop|truncate|remove|wipe|erase|purge|revoke|disable)\s+(?:all\s+|every\s+|the\s+)?(?:file|table|record|user|account|repo|database|bucket|key|backup)s?\b'
     max_trust: third_party
     tags: [tool, destructive]
+
+  # The three rules above scope to third_party because a *user* saying "use
+  # the search tool" is the product working as intended. These three do not
+  # scope, because they key on the target rather than the invocation: a
+  # traversal sequence, a private key path and an instance metadata address
+  # are not things a legitimate request asks an agent to reach for, whoever
+  # is asking. Provenance still decides authority at L4 -- this is only
+  # detection, and detection that names the dangerous object is the kind that
+  # survives contact with real traffic.
+  - id: tool.secret_file_read
+    description: Directive to read credential material off disk.
+    family: tool_abuse
+    severity: critical
+    # The .pub exclusion is not a detail: a public key is meant to be read
+    # and copied around, and "cat ~/.ssh/id_rsa.pub" is a line out of an
+    # ordinary deploy runbook.
+    pattern: '(?:cat|read|open|print|dump|fetch|upload|send|show|display|include|type|exfiltrate|copy)\s+(?:the\s+|my\s+|contents\s+of\s+)?[^\n]{0,40}?(?:~?/?\.ssh/id_[a-z]+|\bid_rsa\b|\.aws/credentials|\.git-credentials|/etc/(?:shadow|passwd)|\.kube/config|\bcredentials\.json\b|\.npmrc\b|\.pypirc\b)(?!\.pub\b)(?!\w)'
+    quotable: false
+    tags: [tool, secrets, high-signal]
+
+  - id: tool.path_traversal
+    description: Traversal sequence aimed at a sensitive file.
+    family: tool_abuse
+    severity: critical
+    # Traversal alone is not enough: '../../lib/util' is an ordinary relative
+    # import someone might paste into a coding question. Neither is traversal
+    # plus a secret target -- "why does open('../../.env') work locally but
+    # fail in CI?" is a support question, and an early draft of this rule
+    # blocked it. What is not ordinary is naming a *callable* and pointing it
+    # at a secret path: that is a request to make an agent go and read it.
+    pattern: '(?:[\w\-]{2,30}\s+(?:tool|function|api|endpoint|plugin|command)|[a-z][\w\-]*[._][\w\-]{2,30})\b[^\n]{0,40}?(?:\.\.[\/]){2,}[^\s\n]{0,40}?(?:\.env\b|\.ssh|credentials?\b|secrets?\b|passwd|shadow|id_rsa|\.pem\b|\.key\b)'
+    quotable: false
+    tags: [tool, traversal, high-signal]
+
+  - id: tool.destructive_sql
+    description: Tool invocation carrying a destructive SQL statement.
+    family: tool_abuse
+    severity: critical
+    # The target has to be a named callable. Requiring only an invocation verb
+    # still fired on "run the migration script that will DROP TABLE
+    # legacy_sessions -- is that safe on a live database?", which is a DBA
+    # asking a sensible question about their own database.
+    pattern: '(?:call|invoke|use|run|execute|query|issue)\s+(?:the\s+)?(?:[\w\-]{2,40}\s+(?:tool|function|api|endpoint|plugin)|[a-z][\w\-]*[._][\w\-]{2,30})\b[^\n]{0,40}?\b(?:drop|truncate)\s+(?:table|database|schema)\b'
+    tags: [tool, destructive, sql]
 
   # --- jailbreak framing ----------------------------------------------------
   - id: jb.persona_dan

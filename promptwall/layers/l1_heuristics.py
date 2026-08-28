@@ -76,6 +76,13 @@ def _discount_quoted(findings: list[Finding], text: str) -> list[Finding]:
     for finding in findings:
         if finding.trust < TrustLevel.USER or finding.start < 0:
             continue
+        # Rules that name a dangerous object rather than a phrasing opt out
+        # in policy (Signature.quotable). Backticks around `cat ~/.ssh/id_rsa`
+        # are how the payload is delivered, not evidence it is being
+        # discussed, and the discount was cutting such a hit to a third of
+        # its weight.
+        if finding.meta.get("quotable") is False:
+            continue
         if _looks_quoted(text, finding.start, finding.end):
             finding.weight = round((finding.weight or 0.0) * _QUOTED_RETENTION, 6)
             finding.meta = {**finding.meta, "quoted_context": True}

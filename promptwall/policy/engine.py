@@ -91,6 +91,22 @@ class ToolVerdict:
         return self.decision in (Decision.ALLOW, Decision.TRANSFORM)
 
 
+def _meta(sig: Signature, target: str, hits: int) -> dict[str, Any]:
+    """Per-finding metadata.
+
+    ``target`` is recorded unconditionally: L1 treats the same rule firing in
+    two different renderings of the request as corroboration, and it cannot
+    do that if the rendering is only reported for rules that happened to
+    match more than once.
+    """
+    meta: dict[str, Any] = {"target": target}
+    if hits > 1:
+        meta["hits"] = hits
+    if not sig.quotable:
+        meta["quotable"] = False
+    return meta
+
+
 def _excerpt(text: str, start: int, end: int, pad: int = 24, limit: int = 160) -> str:
     lo = max(0, start - pad)
     hi = min(len(text), end + pad)
@@ -200,7 +216,7 @@ class PolicyEngine:
                         confidence=1.0,
                         weight=sig.effective_weight,
                         excerpt=_excerpt(text, start, end) if include_excerpt else "",
-                        meta={"target": target, "hits": len(matches)} if len(matches) > 1 else {},
+                        meta=_meta(sig, target, len(matches)),
                     )
                 )
         return findings

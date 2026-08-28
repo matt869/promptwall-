@@ -59,6 +59,19 @@ splits:
       Ordinary traffic, including benign documents arriving through the same
       tool channel attacks use, so "came from a tool" cannot be a shortcut.
 
+  - path: benign/sessions/sessions.jsonl
+    label: 0
+    tags: [hard_negative, multiturn]
+    scored: final_turn_only
+    description: >
+      Benign conversations of the same length and shape as the crescendo
+      ladders, two of which deliberately open the same way an attacker does:
+      asking what the assistant can do, what it was told, and whether it can
+      send mail. Without these the multiturn split was all attacks, which made
+      every cross-turn threshold unfalsifiable -- a crescendo gate could be
+      lowered until the ladders were caught and nothing could show what it
+      cost. These are what it costs.
+
   - path: benign/hard_negatives/hard_negatives.jsonl
     label: 0
     tags: [hard_negative]

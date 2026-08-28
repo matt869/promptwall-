@@ -107,6 +107,18 @@ class Signature(BaseModel):
     #: Fire only if the pattern hits at least this many times.
     min_hits: int = Field(default=1, ge=1)
 
+    #: May L1's quoted-context discount apply to this rule?
+    #:
+    #: True suits rules that match a *phrasing*: "ignore previous
+    #: instructions" really is being discussed rather than issued when it
+    #: appears inside quotation marks in a question about prompt injection.
+    #:
+    #: False suits rules that match a dangerous *object* -- a private key
+    #: path, an instance metadata address, a traversal sequence. Wrapping one
+    #: of those in backticks does not make it a discussion; it is how the
+    #: payload would be delivered.
+    quotable: bool = True
+
     #: Free-form labels used by the benchmark to slice results.
     tags: list[str] = Field(default_factory=list)
 

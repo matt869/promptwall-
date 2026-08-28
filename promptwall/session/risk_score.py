@@ -26,6 +26,21 @@ EWMA_ALPHA = 0.4
 CRESCENDO_WINDOW = 4
 CRESCENDO_MIN_SLOPE = 0.08
 
+#: Floor on the smoothed risk before a rising trend counts as an attack.
+#:
+#: This exists to stop a long, entirely calm conversation from drifting into a
+#: crescendo on rounding noise. It was 0.25, which is above where the quietest
+#: ladders sit -- a crescendo is *defined* by no single turn looking bad, so a
+#: gate set at a quarter of the scale rules out the cases the detector is for.
+#:
+#: 0.10 is what the corpus supports. Measured over benign/sessions, ordinary
+#: four-turn conversations reach an EWMA of at most 0.04 and trend flat or
+#: downward; the crescendo ladders sit at 0.12 to 0.47 while trending up. Both
+#: gates exclude the benign sessions independently, so this is not resting on
+#: one of them. Re-measure before moving it again -- that split exists so this
+#: number cannot be tuned by feel.
+CRESCENDO_MIN_EWMA = 0.10
+
 #: Families that leave a permanent mark on the session.
 STICKY_FAMILIES = {
     AttackFamily.EXFILTRATION: "attempted_exfiltration",
@@ -66,20 +81,13 @@ def update(state: SessionState, turn: TurnRecord) -> SessionRisk:
     )
     state.peak_risk = max(state.peak_risk, turn.risk)
 
-    for family_name in turn.families:
-        try:
-            family = AttackFamily(family_name)
-        except ValueError:
-            continue
-        flag = STICKY_FAMILIES.get(family)
-        if flag:
-            state.flags.add(flag)
+    state.flags.update(flags_for(turn.families))
 
     slope = _slope([t.risk for t in state.recent(CRESCENDO_WINDOW)])
     crescendo = (
         state.turn_count >= CRESCENDO_WINDOW
         and slope >= CRESCENDO_MIN_SLOPE
-        and state.ewma_risk >= 0.25
+        and state.ewma_risk >= CRESCENDO_MIN_EWMA
     )
     if crescendo:
         state.flags.add("crescendo")
@@ -100,6 +108,24 @@ def update(state: SessionState, turn: TurnRecord) -> SessionRisk:
         persistent=persistent,
         flags=sorted(state.flags),
     )
+
+
+def flags_for(families: list[str]) -> set[str]:
+    """The sticky flags this set of family names would leave on a session.
+
+    Exposed so L6 can ask the converse question -- *is this turn repeating a
+    family the session has already tried?* -- without duplicating the table.
+    """
+    out: set[str] = set()
+    for name in families:
+        try:
+            family = AttackFamily(name)
+        except ValueError:
+            continue
+        flag = STICKY_FAMILIES.get(family)
+        if flag:
+            out.add(flag)
+    return out
 
 
 def _slope(values: list[float]) -> float:

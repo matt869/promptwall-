@@ -17,13 +17,21 @@ nobody re-runs.
 | Defence | Recall | 95% CI | FPR | Hard-neg FPR | p99 |
 |---|---|---|---|---|---|
 | `no_defense` | 0.000 | 0.00–0.04 | 0.000 | 0.000 | — |
-| `regex_only` | 0.311 | 0.23–0.40 | 0.286 | 0.667 | 0.04 ms |
-| `rebuff_like` | 0.217 | 0.15–0.30 | 0.114 | 0.267 | 0.05 ms |
-| **`promptwall`** | **0.924** | **0.86–0.96** | **0.029** | **0.067** | **1.96 ms** |
+| `regex_only` | 0.311 | 0.23–0.40 | 0.234 | 0.407 | 0.07 ms |
+| `rebuff_like` | 0.217 | 0.15–0.30 | 0.085 | 0.148 | 0.05 ms |
+| **`promptwall`** | **0.991** | **0.95–1.00** | **0.000** | **0.000** | **3.20 ms** |
+
+A zero false-positive rate over 68 benign records is a small-sample result,
+not a property. The interval is what to quote, and the useful reading is
+comparative: the same corpus costs `regex_only` a 41% hard-negative rate.
+The hard negatives exist to be added to whenever a rule is widened — eight
+of the current set were added because they matched a draft of a rule in this
+repo, and the benign multi-turn sessions were added because without them no
+cross-turn threshold could be falsified.
 
 And the number that matters more:
 
-> **Under an adaptive attacker with a 12-mutation budget, roughly 55% of
+> **Under an adaptive attacker with a 12-mutation budget, roughly 51% of
 > attacks eventually evade detection.**
 
 Both numbers are true. The second is the one to plan around.
@@ -141,7 +149,7 @@ Left in the report rather than tuned away:
 pip install -e ".[dev,train]"
 python scripts/seed_datasets.py
 python bench/harness/runner.py --out /tmp/mine.json
-python scripts/bench_delta.py bench/results/2026-08-26/results.json /tmp/mine.json
+python scripts/bench_delta.py bench/results/2026-08-28/results.json /tmp/mine.json
 ```
 
 `bench_delta.py` is the CI gate. Its thresholds are asymmetric on purpose:
