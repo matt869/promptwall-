@@ -39,6 +39,7 @@ from .telemetry.logging import configure as configure_logging
 from .telemetry.logging import get_logger
 from .telemetry.metrics import get_metrics
 from .telemetry.tracing import configure as configure_tracing
+from .ui import router as ui_router
 
 log = get_logger("main")
 
@@ -117,6 +118,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     install_error_handlers(app)
     app.include_router(proxy_router)
     app.include_router(admin_router)
+    if settings.ui.enabled:
+        app.include_router(ui_router)
     _install_ops_routes(app)
     return app
 
@@ -124,12 +127,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 def _install_ops_routes(app: FastAPI) -> None:
     @app.get("/", include_in_schema=False)
     async def root() -> dict[str, Any]:
-        return {
+        document: dict[str, Any] = {
             "service": "promptwall",
             "version": __version__,
             "mode": app.state.settings.mode.value,
             "docs": "/docs",
         }
+        if app.state.settings.ui.enabled:
+            document["dashboard"] = "/dashboard"
+            document["playground"] = "/playground"
+        return document
 
     @app.get("/healthz", include_in_schema=False)
     async def healthz() -> dict[str, str]:

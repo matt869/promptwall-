@@ -31,7 +31,23 @@ log = get_logger("http.auth")
 
 #: Reachable without a key. Health probes must work before config is valid,
 #: and metrics are expected to be scraped from inside the trust boundary.
-PUBLIC_PATHS = {"/healthz", "/readyz", "/metrics", "/", "/docs", "/openapi.json", "/redoc"}
+#:
+#: The console pages are here too, and only the pages: they are static HTML
+#: that ships no data, and every number on them is fetched from /admin, which
+#: still demands an admin key. Serving the shell discloses nothing that / does
+#: not already disclose.
+PUBLIC_PATHS = {
+    "/healthz",
+    "/readyz",
+    "/metrics",
+    "/",
+    "/docs",
+    "/openapi.json",
+    "/redoc",
+    "/dashboard",
+    "/playground",
+    "/ui/console.css",
+}
 
 
 def _extract(request: Request) -> str:

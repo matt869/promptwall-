@@ -6,6 +6,62 @@ Notable changes to PromptWall. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+
+- **Operator console** at `/dashboard` and `/playground`, served as static
+  HTML with no build step and no third-party assets. The pages carry no data:
+  every number is fetched from `/admin` at runtime and still requires an
+  admin key, so the shells are public without widening disclosure. Off with
+  `PW_UI_ENABLED=false`.
+- `GET /admin/summary` — decisions, families, top rules, a fixed-edge risk
+  histogram, per-layer latency and a newest-first feed, rolled up from the
+  audit log in one pass so the console does not ship every record to a
+  browser on each refresh.
+- Seven signatures: `leak.own_delimiters`, `leak.quote_verbatim`,
+  `exf.recipient_address`, `exf.cloud_metadata`, `tool.secret_file_read`,
+  `tool.path_traversal`, `tool.destructive_sql`. The three `tool.*` rules
+  deliberately do not scope to untrusted provenance, because they key on a
+  dangerous *object* — a private key path, a traversal sequence, a metadata
+  address — rather than on an invocation.
+- `Signature.quotable` (policy field, default true). L1's quoted-context
+  discount now skips rules that opt out. Backticks around `cat ~/.ssh/id_rsa`
+  are how the payload is delivered, not evidence it is being discussed, and
+  the discount was cutting such a hit to a third of its weight.
+- Benign multi-turn sessions in the corpus (`benign/sessions/`). The
+  multiturn split was previously all attacks, which made every cross-turn
+  threshold unfalsifiable. Two of the four open exactly the way the crescendo
+  ladders do.
+- Eight hard negatives, each of which matched a draft of a rule added here.
+
+### Changed
+
+- `io.ignore_previous` no longer fires on the bare "disregard the above"
+  form unless it ends the clause. It was matching "please disregard the above
+  draft and use the second one instead" — an ordinary editing request, and
+  the corpus's only false positive.
+- Crescendo EWMA gate 0.25 → 0.10 (`CRESCENDO_MIN_EWMA`, now named). The old
+  value sat above where the quietest ladders run, which ruled out the case
+  the detector exists for. Measured against the new benign sessions: ordinary
+  conversations reach at most 0.04 and trend flat or down; the ladders run
+  0.12–0.47 while trending up.
+- `l6.prior_attempts` weighs a repeat of a family the session has already
+  tried (0.45) above an unrelated earlier attempt (0.15).
+- Findings always record which rendering matched. `target` was only set when
+  a rule matched more than once, which left L1's cross-rendering
+  corroboration check reading a field that was usually absent.
+
+### Fixed
+
+- `l6.prior_attempts` reported a "repeat" the first time a family ever
+  appeared, because the sticky-flag set was compared *after* the current
+  turn had been folded into it. It now compares against the flags held
+  before the turn.
+
+Results on the expanded 174-record corpus: recall 0.991 (CI 0.95–1.00), FPR
+0.000, hard-negative FPR 0.000, p99 3.20 ms. Under adaptive mutation roughly
+51% of attacks evade *detection*, down from 58%; the tool gate is unaffected
+either way. One corpus attack is undetected by design — see the README.
+
 ## [0.1.0] — 2026-08-26
 
 First release. Alpha: interfaces are still moving and there has been no

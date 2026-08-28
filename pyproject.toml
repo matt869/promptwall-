@@ -56,7 +56,7 @@ Documentation = "https://github.com/promptwall/promptwall/tree/main/docs"
 include = ["promptwall*"]
 
 [tool.setuptools.package-data]
-promptwall = ["policy/rules/*.yaml", "policy/rules/VERSION"]
+promptwall = ["policy/rules/*.yaml", "policy/rules/VERSION", "ui/static/*.html", "ui/static/*.css"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

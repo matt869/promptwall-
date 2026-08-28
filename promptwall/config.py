@@ -135,6 +135,19 @@ class ClassifierConfig(BaseModel):
     allow_fallback: bool = True
 
 
+class UiConfig(BaseModel):
+    """The operator console served at /dashboard and /playground.
+
+    On by default. The pages themselves are static and carry no data: every
+    number on them is fetched from /admin, which still requires an admin key,
+    so enabling the console does not widen what an unauthenticated caller can
+    see beyond what / already reports. Operators who would rather not serve
+    the HTML at all can turn it off.
+    """
+
+    enabled: bool = True
+
+
 class ThresholdConfig(BaseModel):
     block: float = Field(default=0.90, ge=0.0, le=1.0)
     review: float = Field(default=0.55, ge=0.0, le=1.0)
@@ -203,6 +216,7 @@ class Settings(BaseModel):
     budgets: BudgetConfig = Field(default_factory=BudgetConfig)
     session: SessionConfig = Field(default_factory=SessionConfig)
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig)
+    ui: UiConfig = Field(default_factory=UiConfig)
 
     rate_limit_rps: float = Field(default=20.0, gt=0)
     rate_limit_burst: int = Field(default=40, gt=0)
@@ -323,6 +337,7 @@ def build_settings() -> Settings:
                 tracing_enabled=_env_bool("TRACING_ENABLED", False),
                 otlp_endpoint=_env("OTLP_ENDPOINT", "http://localhost:4318"),
             ),
+            ui=UiConfig(enabled=_env_bool("UI_ENABLED", True)),
             spotlight_mode=_env("SPOTLIGHT_MODE", "datamark"),
             spotlight_floor=_trust_from_env("SPOTLIGHT_FLOOR", TrustLevel.THIRD_PARTY),
             rate_limit_rps=_env_num("RATE_LIMIT_RPS", 20.0, float),

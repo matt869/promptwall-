@@ -86,17 +86,43 @@ outcome: no data left the system
 
 [Full walkthrough](demo/WALKTHROUGH.md).
 
+### The console
+
+```bash
+PW_UPSTREAM_PROVIDER=echo PW_AUTH_REQUIRED=false promptwall serve
+```
+
+| | |
+|---|---|
+| `/dashboard` | What the gateway is doing: decisions, where risk is landing relative to the thresholds, which rules are firing, and a live feed of verdicts. |
+| `/playground` | What the gateway *would* do to a request you type. Pick an attack or paste your own, and see which layer caught it, on what evidence, and at what weight. Untick a layer to re-run without it and find out what it was contributing. |
+
+The pages are static HTML and ship no data: every number is fetched from
+`/admin` at runtime, which still requires an admin key. Serving them
+discloses nothing that `/` does not already. `PW_UI_ENABLED=false` turns them
+off entirely.
+
+The playground is the fastest way to disagree with a rule — it runs the same
+seven layers the gateway runs, and forwards nothing to a provider.
+
 ## Results
 
 | Defence | Recall | 95% CI | FPR | Hard-neg FPR | p99 |
 |---|---|---|---|---|---|
 | `no_defense` | 0.000 | 0.00–0.04 | 0.000 | 0.000 | — |
-| `regex_only` | 0.311 | 0.23–0.40 | 0.286 | 0.667 | 0.04 ms |
-| `rebuff_like` | 0.217 | 0.15–0.30 | 0.114 | 0.267 | 0.05 ms |
-| **`promptwall`** | **0.924** | **0.86–0.96** | **0.029** | **0.067** | **1.96 ms** |
+| `regex_only` | 0.311 | 0.23–0.40 | 0.234 | 0.407 | 0.07 ms |
+| `rebuff_like` | 0.217 | 0.15–0.30 | 0.085 | 0.148 | 0.05 ms |
+| **`promptwall`** | **0.991** | **0.95–1.00** | **0.000** | **0.000** | **3.20 ms** |
+
+One attack in the corpus is not detected, and it is the honest one to know
+about: a user turn asking the assistant to mail records to an outside
+address. No signature separates that from a user asking to mail their own
+notes to a colleague, because nothing in the text does — only authority
+does. L4 escalates it to require explicit confirmation before the mail can
+be sent, which is the control that actually applies.
 
 **And the number that matters more:** under an adaptive attacker with a
-12-mutation budget, **roughly 55% of attacks eventually evade detection.**
+12-mutation budget, **roughly 51% of attacks eventually evade detection.**
 
 Both are true. The second is the one to plan around — and the reason the
 guarantee sits in L4, which none of those mutations affect, because none of

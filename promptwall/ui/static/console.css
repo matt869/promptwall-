@@ -1,0 +1,329 @@
+/* PromptWall operator console.
+ *
+ * One stylesheet, no framework, no build step. Dark by default because this
+ * is an ops surface that sits open on a second monitor; light is honoured
+ * when the operating system asks for it.
+ */
+
+:root {
+  --bg: #0d1117;
+  --bg-raised: #151b23;
+  --bg-sunken: #010409;
+  --border: #2a313c;
+  --border-strong: #3d444d;
+  --fg: #e6edf3;
+  --fg-muted: #9198a1;
+  --fg-faint: #6b7280;
+  --accent: #58a6ff;
+  --allow: #3fb950;
+  --transform: #58a6ff;
+  --challenge: #d29922;
+  --block: #f85149;
+  --critical: #f85149;
+  --high: #ff8c5a;
+  --medium: #d29922;
+  --low: #6ea8fe;
+  --info: #8b949e;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --radius: 8px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #ffffff;
+    --bg-raised: #f6f8fa;
+    --bg-sunken: #eef1f4;
+    --border: #d8dee4;
+    --border-strong: #b8c0c8;
+    --fg: #1f2328;
+    --fg-muted: #59636e;
+    --fg-faint: #818b98;
+    --accent: #0969da;
+    --allow: #1a7f37;
+    --transform: #0969da;
+    --challenge: #9a6700;
+    --block: #cf222e;
+    --critical: #cf222e;
+    --high: #bc4c00;
+    --medium: #9a6700;
+    --low: #0969da;
+    --info: #59636e;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--accent); }
+
+/* --- chrome ------------------------------------------------------------- */
+
+header.bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 12px 20px;
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.brand {
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand svg { display: block; }
+
+nav.tabs { display: flex; gap: 4px; }
+
+nav.tabs a {
+  padding: 5px 12px;
+  border-radius: 6px;
+  text-decoration: none;
+  color: var(--fg-muted);
+  font-weight: 500;
+}
+
+nav.tabs a:hover { background: var(--bg-sunken); color: var(--fg); }
+nav.tabs a[aria-current="page"] { background: var(--bg-sunken); color: var(--fg); }
+
+.spacer { flex: 1 1 auto; }
+
+main { padding: 20px; max-width: 1440px; margin: 0 auto; }
+
+/* --- controls ----------------------------------------------------------- */
+
+input[type="text"], input[type="password"], textarea, select {
+  background: var(--bg-sunken);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font: inherit;
+}
+
+textarea {
+  font-family: var(--mono);
+  font-size: 13px;
+  width: 100%;
+  resize: vertical;
+}
+
+input:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+button {
+  background: var(--bg-sunken);
+  color: var(--fg);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  padding: 6px 14px;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: 0.5; cursor: default; }
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+}
+
+label.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+
+/* --- cards -------------------------------------------------------------- */
+
+.grid { display: grid; gap: 16px; }
+.cols-2 { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+
+.card {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  min-width: 0;
+}
+
+.card > h2 {
+  margin: 0 0 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-muted);
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.tile {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
+.tile .n {
+  font-size: 26px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.tile .k {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-muted);
+  margin-top: 4px;
+}
+
+/* --- badges ------------------------------------------------------------- */
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border: 1px solid currentColor;
+}
+
+.d-allow { color: var(--allow); }
+.d-transform { color: var(--transform); }
+.d-challenge { color: var(--challenge); }
+.d-block { color: var(--block); }
+.d-unknown { color: var(--fg-faint); }
+
+.sev-critical { color: var(--critical); }
+.sev-high { color: var(--high); }
+.sev-medium { color: var(--medium); }
+.sev-low { color: var(--low); }
+.sev-info { color: var(--info); }
+
+/* --- pipeline strip ----------------------------------------------------- */
+
+.pipeline { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.layer {
+  flex: 1 1 130px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: var(--bg-sunken);
+  min-width: 0;
+}
+
+.layer .name { font-family: var(--mono); font-size: 12px; font-weight: 600; }
+.layer .meta { font-size: 11px; color: var(--fg-muted); margin-top: 3px; }
+.layer.on { border-left: 3px solid var(--allow); }
+.layer.off { border-left: 3px solid var(--fg-faint); opacity: 0.65; }
+.layer.hit { border-left: 3px solid var(--block); }
+.layer.skip { border-left: 3px solid var(--fg-faint); }
+
+/* --- bars --------------------------------------------------------------- */
+
+.bars { display: grid; gap: 6px; }
+
+.bar-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 190px) 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.bar-label {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bar-track { background: var(--bg-sunken); border-radius: 3px; height: 16px; overflow: hidden; }
+.bar-fill { height: 100%; background: var(--accent); border-radius: 3px; min-width: 2px; }
+.bar-n { font-variant-numeric: tabular-nums; font-size: 12px; color: var(--fg-muted); }
+
+/* --- tables ------------------------------------------------------------- */
+
+.scroll { overflow-x: auto; }
+
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+
+th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fg-muted);
+  font-weight: 600;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+td { padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+tbody tr:last-child td { border-bottom: none; }
+td.mono, .mono { font-family: var(--mono); font-size: 12px; }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.empty {
+  color: var(--fg-faint);
+  padding: 24px 10px;
+  text-align: center;
+  font-style: italic;
+}
+
+/* --- misc --------------------------------------------------------------- */
+
+.meter { height: 6px; border-radius: 3px; background: var(--bg-sunken); overflow: hidden; }
+.meter > div { height: 100%; border-radius: 3px; }
+
+pre.code {
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-family: var(--mono);
+  font-size: 12px;
+  overflow-x: auto;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.hint { color: var(--fg-muted); font-size: 12px; }
+.err { color: var(--block); font-size: 13px; }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.stack { display: grid; gap: 16px; }

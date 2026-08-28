@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>PromptWall - dashboard</title>
+<link rel="stylesheet" href="/ui/console.css">
+</head>
+<body>
+
+<header class="bar">
+  <span class="brand">
+    <svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true">
+      <path fill="currentColor" d="M8 0 1 3v5c0 4 3 6.7 7 8 4-1.3 7-4 7-8V3L8 0Zm0 1.7 5.4 2.3v4c0 3-2.1 5.2-5.4 6.3-3.3-1.1-5.4-3.3-5.4-6.3V4L8 1.7Z"/>
+    </svg>
+    PromptWall
+  </span>
+  <nav class="tabs">
+    <a href="/dashboard" aria-current="page">Dashboard</a>
+    <a href="/playground">Playground</a>
+    <a href="/docs">API</a>
+  </nav>
+  <span class="spacer"></span>
+  <label class="field" style="flex-direction:row;align-items:center;gap:6px">
+    <input type="checkbox" id="auto" checked>
+    <span>auto-refresh</span>
+  </label>
+  <input type="password" id="key" placeholder="admin API key" autocomplete="off" style="width:190px">
+  <button id="refresh">Refresh</button>
+</header>
+
+<main class="stack">
+
+  <div class="tiles" id="tiles"></div>
+
+  <div class="card">
+    <h2>Pipeline</h2>
+    <div class="pipeline" id="pipeline"><div class="empty">loading</div></div>
+    <div class="hint" id="policy" style="margin-top:12px"></div>
+  </div>
+
+  <div class="grid cols-2">
+    <div class="card">
+      <h2>Risk distribution</h2>
+      <div class="bars" id="risk"><div class="empty">no traffic yet</div></div>
+    </div>
+    <div class="card">
+      <h2>Rules fired</h2>
+      <div class="bars" id="rules"><div class="empty">no traffic yet</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Recent decisions</h2>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>time</th><th>request</th><th>phase</th><th>decision</th>
+            <th class="num">risk</th><th class="num">ms</th><th>rules</th>
+          </tr>
+        </thead>
+        <tbody id="feed">
+          <tr><td colspan="7" class="empty">no traffic yet</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="hint" id="feed-note" style="margin:12px 0 0"></p>
+  </div>
+
+</main>
+
+<script>
+"use strict";
+
+const DECISIONS = ["allow", "transform", "challenge", "block"];
+const KEY_STORE = "promptwall.adminKey";
+
+const $ = (id) => document.getElementById(id);
+const keyBox = $("key");
+
+keyBox.value = localStorage.getItem(KEY_STORE) || "";
+keyBox.addEventListener("change", () => {
+  localStorage.setItem(KEY_STORE, keyBox.value.trim());
+  load();
+});
+
+function headers() {
+  const key = keyBox.value.trim();
+  return key ? { authorization: "Bearer " + key } : {};
+}
+
+async function api(path) {
+  const res = await fetch(path, { headers: headers() });
+  if (!res.ok) {
+    const err = new Error("HTTP " + res.status);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+/* --- pipeline + policy, from the public /readyz ------------------------- */
+
+function renderReady(data) {
+  const strip = $("pipeline");
+  strip.replaceChildren();
+  for (const [name, status] of Object.entries(data.layers || {})) {
+    const box = el("div", "layer " + (status.enabled ? "on" : "off"));
+    box.appendChild(el("div", "name", name));
+    const detail = status.enabled
+      ? (status.scorer ? "active - " + status.scorer : "active")
+      : (status.reason || "disabled");
+    box.appendChild(el("div", "meta", detail));
+    strip.appendChild(box);
+  }
+  const p = data.policy || {};
+  $("policy").textContent =
+    "policy v" + p.version + " - digest " + p.digest + " - " +
+    p.signatures + " signatures, " + p.tool_rules + " tool rules, " +
+    p.redaction_rules + " redaction rules";
+}
+
+/* --- tiles -------------------------------------------------------------- */
+
+function renderTiles(root, summary) {
+  const counts = (summary && summary.decisions) || {};
+  const total = (summary && summary.total) || 0;
+  root.replaceChildren();
+
+  const totalTile = el("div", "tile");
+  totalTile.appendChild(el("div", "n", String(total)));
+  totalTile.appendChild(el("div", "k", "evaluated"));
+  root.appendChild(totalTile);
+
+  for (const name of DECISIONS) {
+    const tile = el("div", "tile");
+    const n = el("div", "n d-" + name, String(counts[name] || 0));
+    tile.appendChild(n);
+    tile.appendChild(el("div", "k", name));
+    root.appendChild(tile);
+  }
+}
+
+/* --- bar charts --------------------------------------------------------- */
+
+function renderBars(root, rows, emptyText) {
+  root.replaceChildren();
+  if (!rows.length || rows.every((r) => !r.value)) {
+    root.appendChild(el("div", "empty", emptyText));
+    return;
+  }
+  const max = Math.max(...rows.map((r) => r.value));
+  for (const row of rows) {
+    const line = el("div", "bar-row");
+    line.appendChild(el("div", "bar-label", row.label));
+    const track = el("div", "bar-track");
+    const fill = el("div", "bar-fill");
+    fill.style.width = max ? (row.value / max) * 100 + "%" : "0";
+    if (row.color) fill.style.background = row.color;
+    track.appendChild(fill);
+    line.appendChild(track);
+    line.appendChild(el("div", "bar-n", String(row.value)));
+    root.appendChild(line);
+  }
+}
+
+/* Risk buckets are coloured by what the gateway would do at that score, so
+   the shape of the histogram reads as "how much traffic is near the line". */
+function riskColour(edge) {
+  if (edge >= 0.9) return "var(--block)";
+  if (edge >= 0.55) return "var(--challenge)";
+  return "var(--allow)";
+}
+
+function renderRisk(summary) {
+  const h = (summary && summary.risk_histogram) || { edges: [], counts: [] };
+  const rows = h.edges.map((edge, i) => {
+    const next = h.edges[i + 1];
+    return {
+      label: edge.toFixed(2) + (next === undefined ? "+" : "-" + next.toFixed(2)),
+      value: h.counts[i] || 0,
+      color: riskColour(edge),
+    };
+  });
+  renderBars($("risk"), rows, "no traffic yet");
+}
+
+function renderRules(summary) {
+  const rows = ((summary && summary.top_rules) || []).map((r) => ({
+    label: r.rule_id,
+    value: r.hits,
+  }));
+  renderBars($("rules"), rows, "nothing has fired yet");
+}
+
+/* --- feed --------------------------------------------------------------- */
+
+function renderFeed(summary) {
+  const body = $("feed");
+  const rows = (summary && summary.recent) || [];
+  body.replaceChildren();
+
+  if (!rows.length) {
+    const tr = el("tr");
+    const td = el("td", "empty", "no traffic yet - send a request, or use the playground");
+    td.colSpan = 7;
+    tr.appendChild(td);
+    body.appendChild(tr);
+    return;
+  }
+
+  for (const row of rows) {
+    const tr = el("tr");
+    const when = row.ts ? new Date(row.ts * 1000).toLocaleTimeString() : "";
+    tr.appendChild(el("td", "mono", when));
+    tr.appendChild(el("td", "mono", (row.request_id || "").slice(0, 12)));
+    tr.appendChild(el("td", "mono", row.phase || ""));
+
+    const decision = el("td");
+    const badge = el("span", "badge d-" + (row.decision || "unknown"), row.decision || "?");
+    decision.appendChild(badge);
+    if (row.advisory) decision.appendChild(el("span", "hint", " advisory"));
+    tr.appendChild(decision);
+
+    tr.appendChild(el("td", "num mono", Number(row.risk || 0).toFixed(3)));
+    tr.appendChild(el("td", "num mono", Number(row.duration_ms || 0).toFixed(1)));
+    tr.appendChild(el("td", "mono", (row.rules || []).join(", ")));
+    body.appendChild(tr);
+  }
+}
+
+/* --- load --------------------------------------------------------------- */
+
+async function load() {
+  try {
+    renderReady(await api("/readyz"));
+  } catch (err) {
+    $("pipeline").replaceChildren(el("div", "err", "could not read /readyz: " + err.message));
+  }
+
+  const note = $("feed-note");
+  try {
+    const summary = await api("/admin/summary?limit=60");
+    renderTiles($("tiles"), summary);
+    renderRisk(summary);
+    renderRules(summary);
+    renderFeed(summary);
+    note.textContent = summary.total
+      ? "Rolled up from the audit log. Counts cover every record on disk; the table shows the newest 60."
+      : "The audit log is empty. Traffic appears here as soon as the gateway evaluates a request.";
+    note.className = "hint";
+  } catch (err) {
+    renderTiles($("tiles"), null);
+    note.className = "err";
+    note.textContent = err.status === 401 || err.status === 403
+      ? "Traffic needs an admin key. Paste one above - it is kept in this browser only."
+      : "Could not load traffic: " + err.message;
+  }
+}
+
+$("refresh").addEventListener("click", load);
+
+let timer = null;
+function schedule() {
+  if (timer) clearInterval(timer);
+  if ($("auto").checked) timer = setInterval(load, 5000);
+}
+$("auto").addEventListener("change", schedule);
+
+load();
+schedule();
+</script>
+</body>
+</html>
