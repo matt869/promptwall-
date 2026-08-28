@@ -12,6 +12,7 @@ records, and it is the mechanism behind the benchmark's ablation runs.
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -113,6 +114,45 @@ def iter_audit(path: str | Path, limit: int = 1000) -> Iterator[dict[str, Any]]:
             count += 1
             if count >= limit:
                 return
+
+
+def tail_audit(path: str | Path, limit: int = 50, block: int = 64 * 1024) -> list[dict[str, Any]]:
+    """The last ``limit`` records, without reading the ones before them.
+
+    iter_audit walks the file from the start, which is right when you are
+    looking for a particular record and wrong when you want the newest few:
+    on a 100k-record log it parses 24 MB into memory to discard all but the
+    last fifty. This seeks backward from the end instead, reading whole
+    blocks until it holds one more newline than it needs -- which guarantees
+    every line it returns is complete, since only the first line in the
+    buffer can be a fragment.
+    """
+    file = Path(path)
+    if not file.is_file():
+        return []
+
+    with file.open("rb") as handle:
+        handle.seek(0, os.SEEK_END)
+        position = handle.tell()
+        buffer = b""
+        while position > 0 and buffer.count(b"\n") <= limit:
+            step = min(block, position)
+            position -= step
+            handle.seek(position)
+            buffer = handle.read(step) + buffer
+
+    out: list[dict[str, Any]] = []
+    for line in buffer.splitlines()[-limit:]:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            record = json.loads(line)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            continue
+        if isinstance(record, dict):
+            out.append(record)
+    return out
 
 
 def find_record(path: str | Path, request_id: str) -> dict[str, Any] | None:

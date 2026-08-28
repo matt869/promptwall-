@@ -1,10 +1,14 @@
-"""The incremental audit summariser.
+"""Reading the audit log without reading all of it.
 
-Its correctness claim is narrow and worth stating: folding new bytes into
-held counters must produce exactly what re-reading the file would have. The
-interesting cases are the two ways an append-only file is not actually
-append-only from a reader's point of view -- a record caught half-written,
-and a file rotated out from under the offset.
+Two functions share one correctness claim: what they return must equal what
+walking the whole file would have returned. The summariser folds new bytes
+into counters it already holds; tail_audit seeks backward from the end. Both
+replace an implementation that parsed the entire log to answer a question
+about its last few records.
+
+The interesting cases are the ways an append-only file is not actually
+append-only from a reader's point of view -- a record caught half-written, a
+file rotated out from under the offset, a block boundary landing mid-line.
 """
 
 from __future__ import annotations
@@ -14,6 +18,7 @@ from pathlib import Path
 
 import pytest
 
+from promptwall.admin.replay import iter_audit, tail_audit
 from promptwall.admin.summary import AuditSummariser
 
 
@@ -205,3 +210,53 @@ def test_limit_selects_the_newest_records(log):
     write(log, [record(request_id=f"r{i:03d}") for i in range(50)])
     recent = AuditSummariser(log).snapshot(limit=3)["recent"]
     assert [row["request_id"] for row in recent] == ["r049", "r048", "r047"]
+
+
+# --- tail_audit ------------------------------------------------------------
+
+
+def test_tail_matches_walking_the_whole_file(log):
+    """The claim that justifies replacing the full read."""
+    write(log, [record(request_id=f"r{i:04d}") for i in range(500)])
+    everything = list(iter_audit(log, limit=100_000))
+    for limit in (1, 7, 50, 499, 500):
+        assert tail_audit(log, limit) == everything[-limit:], f"limit={limit}"
+
+
+@pytest.mark.parametrize("block", [1, 7, 64, 4096])
+def test_tail_is_correct_whatever_the_block_boundary(log, block):
+    """Reading backward in blocks puts a boundary in the middle of a line.
+
+    Only the *first* line in the assembled buffer can be a fragment, which is
+    why the loop reads until it holds one more newline than it needs. A tiny
+    block size forces many backward seeks and exercises that.
+    """
+    write(log, [record(request_id=f"r{i:03d}") for i in range(40)])
+    expected = list(iter_audit(log, limit=1000))[-10:]
+    assert tail_audit(log, 10, block=block) == expected
+
+
+def test_tail_handles_a_limit_larger_than_the_file(log):
+    rows = [record(request_id=f"r{i}") for i in range(3)]
+    write(log, rows)
+    assert tail_audit(log, 500) == rows
+
+
+def test_tail_returns_a_final_record_with_no_trailing_newline(log):
+    """A log flushed mid-line still has a complete record in it."""
+    rows = [record(request_id=f"r{i}") for i in range(3)]
+    log.write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
+    assert tail_audit(log, 2) == rows[-2:]
+
+
+def test_tail_on_a_missing_or_empty_file(log, tmp_path):
+    assert tail_audit(tmp_path / "nope.log", 10) == []
+    log.write_text("", encoding="utf-8")
+    assert tail_audit(log, 10) == []
+
+
+def test_tail_skips_malformed_lines(log):
+    log.write_text(
+        '{"request_id": "a"}\nnot json\n\n{"request_id": "b"}\n', encoding="utf-8"
+    )
+    assert tail_audit(log, 10) == [{"request_id": "a"}, {"request_id": "b"}]

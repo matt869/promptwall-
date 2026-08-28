@@ -69,10 +69,17 @@ Notable changes to PromptWall. Format loosely follows
   between calls and folding only newly appended bytes, and served off the
   event loop. An idle poll went 964 ms → 0.35 ms. Torn writes and log
   rotation are handled explicitly rather than by luck.
+- `/admin/audit/recent` had the same defect and now seeks backward from the
+  end of the file (`replay.tail_audit`). It was parsing 100k records into
+  memory to return the last fifty: ~1.6 s of blocked event loop per call,
+  against 0.6 ms for the tail read, for byte-identical output.
 - The dashboard treated `/readyz`'s 503 as a failure and blanked itself when
   the gateway was degraded — which is the moment the layer detail in that
   response is most wanted. It now reads through the 503 and reports what is
   unavailable.
+- Dashboard polls no longer overlap. The refresh timer fired on a schedule
+  regardless of whether the previous load had finished, so a cold summariser
+  or a slow link could stack requests that then rendered over each other.
 - A missing admin key in the playground rendered as a red error on first
   load, reporting the console as broken when it was working as designed.
 

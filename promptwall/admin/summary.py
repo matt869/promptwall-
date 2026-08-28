@@ -80,7 +80,6 @@ class AuditSummariser:
         self._layer_count: Counter[str] = Counter()
         self._histogram = [0] * len(RISK_EDGES)
         self._recent: deque[dict[str, Any]] = deque(maxlen=RECENT_MAX)
-        self._rebuilds = 0
 
     # -- ingest ----------------------------------------------------------
 
@@ -121,7 +120,6 @@ class AuditSummariser:
         if size < self._offset:
             # Truncated or rotated under us.
             self._reset()
-            self._rebuilds += 1
 
         if size == self._offset:
             return

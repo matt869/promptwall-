@@ -141,13 +141,18 @@ async def verify_audit(request: Request) -> dict[str, Any]:
 
 
 @router.get("/audit/recent")
-async def recent_audit(
-    request: Request, limit: int = Query(50, ge=1, le=500)
-) -> dict[str, Any]:
-    """Most recent audit records."""
+def recent_audit(request: Request, limit: int = Query(50, ge=1, le=500)) -> dict[str, Any]:
+    """Most recent audit records.
+
+    Reads backward from the end of the file. The previous implementation
+    walked the whole log and threw away everything but the tail, which on a
+    real log is a second of blocked event loop to answer a question about
+    fifty records. Sync for the same reason /admin/summary is: file IO
+    belongs in the threadpool.
+    """
     path = request.app.state.settings.telemetry.audit_path
-    records = list(replay_mod.iter_audit(path, limit=100_000))
-    return {"count": len(records[-limit:]), "records": records[-limit:]}
+    records = replay_mod.tail_audit(path, limit=limit)
+    return {"count": len(records), "records": records}
 
 
 @router.get("/sessions/{session_id}")
