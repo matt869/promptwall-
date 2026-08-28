@@ -167,6 +167,40 @@ def test_summary_aggregates_an_audit_log(tmp_path):
     assert [row["request_id"] for row in body["recent"]] == ["c", "b", "a"]
 
 
+def test_readyz_carries_layer_detail_in_its_503(client):
+    """The dashboard reads /readyz through a 503 on purpose.
+
+    A degraded gateway is exactly when an operator needs to see which layer
+    is unavailable, and that detail only exists in the failing response. An
+    earlier version of the page treated any non-200 as an error and blanked
+    itself at the worst possible moment.
+    """
+    pipeline = client.app.state.pipeline
+    for layer in pipeline.registry.all():
+        if str(layer.name) == "l1_heuristics":
+            layer.disable("simulated failure")
+
+    response = client.get("/readyz")
+    assert response.status_code == 503
+    body = response.json()
+    assert body["status"] == "degraded"
+    assert body["layers"]["l1_heuristics"]["enabled"] is False
+    assert body["layers"]["l1_heuristics"]["reason"] == "simulated failure"
+    # The strip still renders from the same payload.
+    assert body["policy"]["digest"]
+
+
+def test_root_reports_mode_so_monitor_can_be_flagged(client):
+    """Monitor mode is the fact most likely to be missed: every number on the
+    dashboard looks like enforcement and none of it is."""
+    assert client.get("/").json()["mode"] == "enforce"
+
+    settings = build()
+    settings.mode = Mode.MONITOR
+    with TestClient(create_app(settings)) as monitoring:
+        assert monitoring.get("/").json()["mode"] == "monitor"
+
+
 def test_playground_replay_returns_a_renderable_trace(client):
     """The playground draws whatever /admin/replay returns, so the contract
     between them is worth pinning."""

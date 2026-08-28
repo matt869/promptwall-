@@ -8,7 +8,6 @@ before attacking the thing PromptWall is protecting.
 
 from __future__ import annotations
 
-from collections import Counter
 from typing import Any
 
 from fastapi import APIRouter, Body, Query, Request
@@ -16,6 +15,7 @@ from fastapi import APIRouter, Body, Query, Request
 from ..exceptions import PolicyValidationError, ValidationError
 from ..telemetry.logging import get_logger
 from . import replay as replay_mod
+from .summary import get_summariser
 
 log = get_logger("admin")
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -84,88 +84,18 @@ async def stats(request: Request) -> dict[str, Any]:
 
 
 @router.get("/summary")
-async def summary(
-    request: Request, limit: int = Query(200, ge=1, le=2000)
-) -> dict[str, Any]:
+def summary(request: Request, limit: int = Query(200, ge=1, le=2000)) -> dict[str, Any]:
     """Traffic rolled up for the operator console.
 
-    The console could fetch /admin/audit/recent and count client-side, but
-    that ships every record to a browser on every refresh purely to throw
-    most of them away. Aggregating here keeps the payload flat as the audit
-    log grows, and keeps request content out of the browser entirely.
+    Deliberately a sync handler. Starlette runs these in a threadpool, and the
+    first pass over an existing log has to read the whole file -- on the event
+    loop that would stall every request through the gateway while the console
+    warmed up. Subsequent passes are incremental (see admin/summary.py).
     """
-    path = request.app.state.settings.telemetry.audit_path
-    records = list(replay_mod.iter_audit(path, limit=100_000))
-
-    decisions: Counter[str] = Counter()
-    families: Counter[str] = Counter()
-    rules: Counter[str] = Counter()
-    layer_ms: dict[str, list[float]] = {}
-    risks: list[float] = []
-
-    for record in records:
-        decisions[str(record.get("decision", "unknown"))] += 1
-        for family in record.get("families") or []:
-            families[str(family)] += 1
-        for finding in record.get("findings") or []:
-            rules[str(finding.get("rule_id", "?"))] += 1
-        for layer in record.get("layers") or []:
-            if layer.get("ran"):
-                layer_ms.setdefault(str(layer.get("layer")), []).append(
-                    float(layer.get("duration_ms") or 0.0)
-                )
-        risk = record.get("risk")
-        if isinstance(risk, int | float):
-            risks.append(float(risk))
-
-    # Fixed bucket edges rather than a computed range: a histogram whose axis
-    # moves with the data cannot be compared against yesterday's.
-    buckets = [0.0, 0.1, 0.25, 0.4, 0.55, 0.7, 0.8, 0.9, 1.01]
-    histogram = [0] * (len(buckets) - 1)
-    for risk in risks:
-        for i in range(len(buckets) - 1):
-            if buckets[i] <= risk < buckets[i + 1]:
-                histogram[i] += 1
-                break
-
-    return {
-        "total": len(records),
-        "decisions": dict(decisions),
-        "families": dict(families.most_common(12)),
-        "top_rules": [
-            {"rule_id": rule, "hits": hits} for rule, hits in rules.most_common(12)
-        ],
-        "risk_histogram": {
-            "edges": buckets[:-1],
-            "counts": histogram,
-        },
-        "layer_latency_ms": {
-            name: round(sum(values) / len(values), 3)
-            for name, values in sorted(layer_ms.items())
-            if values
-        },
-        "recent": [
-            {
-                key: record.get(key)
-                for key in (
-                    "ts",
-                    "request_id",
-                    "phase",
-                    "decision",
-                    "risk",
-                    "advisory",
-                    "families",
-                    "duration_ms",
-                )
-            }
-            | {
-                "rules": [
-                    str(f.get("rule_id")) for f in (record.get("findings") or [])
-                ][:6]
-            }
-            for record in records[-limit:][::-1]
-        ],
-    }
+    summariser = get_summariser(
+        request.app.state, request.app.state.settings.telemetry.audit_path
+    )
+    return summariser.snapshot(limit=limit)
 
 
 @router.post("/replay")

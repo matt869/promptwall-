@@ -22,15 +22,22 @@
     <a href="/docs">API</a>
   </nav>
   <span class="spacer"></span>
+  <span class="hint" id="updated" aria-live="polite"></span>
   <label class="field" style="flex-direction:row;align-items:center;gap:6px">
     <input type="checkbox" id="auto" checked>
     <span>auto-refresh</span>
   </label>
-  <input type="password" id="key" placeholder="admin API key" autocomplete="off" style="width:190px">
+  <label class="field" style="flex-direction:row;align-items:center;gap:6px">
+    <span class="sr-only">Admin API key</span>
+    <input type="password" id="key" placeholder="admin API key" autocomplete="off"
+           style="width:190px">
+  </label>
   <button id="refresh">Refresh</button>
 </header>
 
 <main class="stack">
+
+  <div id="banners" class="stack" style="gap:8px"></div>
 
   <div class="tiles" id="tiles"></div>
 
@@ -91,9 +98,14 @@ function headers() {
   return key ? { authorization: "Bearer " + key } : {};
 }
 
-async function api(path) {
+/* `tolerate` lists status codes whose body is still the answer.
+   /readyz replies 503 when a layer is unavailable, and that response carries
+   the layer status -- which is precisely what an operator needs at the moment
+   the gateway is degraded. Treating it as a failure blanked the page exactly
+   when it mattered most. */
+async function api(path, tolerate = []) {
   const res = await fetch(path, { headers: headers() });
-  if (!res.ok) {
+  if (!res.ok && !tolerate.includes(res.status)) {
     const err = new Error("HTTP " + res.status);
     err.status = res.status;
     throw err;
@@ -106,6 +118,43 @@ function el(tag, className, text) {
   if (className) node.className = className;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+/* --- banners ------------------------------------------------------------ */
+
+function banner(kind, title, detail) {
+  const box = el("div", "notice " + kind);
+  box.appendChild(el("strong", "", title));
+  if (detail) box.appendChild(el("span", "", " " + detail));
+  return box;
+}
+
+/* Two facts an operator must not have to hunt for.
+
+   Monitor mode is the one that gets people. Every number on this page looks
+   like enforcement and none of it is: verdicts are advisory and the traffic
+   went through regardless. Running there indefinitely means PromptWall is
+   watching an attack rather than stopping it.
+
+   Degraded means a layer that is not advisory is unavailable, so the
+   pipeline is quietly thinner than the policy claims. */
+function renderBanners(root, info, ready) {
+  root.replaceChildren();
+
+  if (info && info.mode === "monitor") {
+    root.appendChild(banner(
+      "warn", "Monitor mode.",
+      "Verdicts are advisory — nothing below was actually blocked or redacted. " +
+      "Set PW_MODE=enforce once you have reviewed what would have been."));
+  }
+
+  if (ready && ready.status === "degraded") {
+    const down = Object.entries(ready.layers || {})
+      .filter(([, s]) => !s.enabled)
+      .map(([name, s]) => name + " (" + (s.reason || "unavailable") + ")")
+      .join(", ");
+    root.appendChild(banner("bad", "Degraded.", "Unavailable: " + down));
+  }
 }
 
 /* --- pipeline + policy, from the public /readyz ------------------------- */
@@ -241,11 +290,15 @@ function renderFeed(summary) {
 /* --- load --------------------------------------------------------------- */
 
 async function load() {
+  let ready = null;
+  let info = null;
   try {
-    renderReady(await api("/readyz"));
+    [ready, info] = await Promise.all([api("/readyz", [503]), api("/")]);
+    renderReady(ready);
   } catch (err) {
     $("pipeline").replaceChildren(el("div", "err", "could not read /readyz: " + err.message));
   }
+  renderBanners($("banners"), info, ready);
 
   const note = $("feed-note");
   try {
@@ -260,11 +313,13 @@ async function load() {
     note.className = "hint";
   } catch (err) {
     renderTiles($("tiles"), null);
-    note.className = "err";
+    note.className = err.status === 401 || err.status === 403 ? "hint" : "err";
     note.textContent = err.status === 401 || err.status === 403
       ? "Traffic needs an admin key. Paste one above - it is kept in this browser only."
       : "Could not load traffic: " + err.message;
   }
+
+  $("updated").textContent = "updated " + new Date().toLocaleTimeString();
 }
 
 $("refresh").addEventListener("click", load);

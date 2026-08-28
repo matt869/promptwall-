@@ -50,12 +50,31 @@ Notable changes to PromptWall. Format loosely follows
   a rule matched more than once, which left L1's cross-rendering
   corroboration check reading a field that was usually absent.
 
+- The dashboard names the two states an operator should not have to hunt
+  for: **monitor mode**, where every number on the page looks like
+  enforcement and none of it is, and **degraded**, naming the unavailable
+  layers.
+
 ### Fixed
 
 - `l6.prior_attempts` reported a "repeat" the first time a family ever
   appeared, because the sticky-flag set was compared *after* the current
   turn had been folded into it. It now compares against the flags held
   before the turn.
+- `/admin/summary` re-read the entire audit log on every request, from the
+  event loop. At 100k records that is ~24 MB and ~900 ms, polled every five
+  seconds by an open dashboard — so the console would repeatedly stall the
+  gateway it was monitoring for seven times its own input latency budget.
+  It is now incremental (`promptwall/admin/summary.py`), holding counters
+  between calls and folding only newly appended bytes, and served off the
+  event loop. An idle poll went 964 ms → 0.35 ms. Torn writes and log
+  rotation are handled explicitly rather than by luck.
+- The dashboard treated `/readyz`'s 503 as a failure and blanked itself when
+  the gateway was degraded — which is the moment the layer detail in that
+  response is most wanted. It now reads through the 503 and reports what is
+  unavailable.
+- A missing admin key in the playground rendered as a red error on first
+  load, reporting the console as broken when it was working as designed.
 
 Results on the expanded 174-record corpus: recall 0.991 (CI 0.95–1.00), FPR
 0.000, hard-negative FPR 0.000, p99 3.20 ms. Under adaptive mutation roughly

@@ -22,7 +22,11 @@
     <a href="/docs">API</a>
   </nav>
   <span class="spacer"></span>
-  <input type="password" id="key" placeholder="admin API key" autocomplete="off" style="width:190px">
+  <label class="field" style="flex-direction:row;align-items:center;gap:6px">
+    <span class="sr-only">Admin API key</span>
+    <input type="password" id="key" placeholder="admin API key" autocomplete="off"
+           style="width:190px">
+  </label>
 </header>
 
 <main class="grid cols-2">
@@ -447,10 +451,14 @@ async function run() {
     });
 
     if (!res.ok) {
-      const detail = res.status === 401 || res.status === 403
-        ? "This needs an admin key. Paste one in the header - it is kept in this browser only."
+      // Needing a key is not an error, and the page runs once on load -- so
+      // greeting a first-time visitor with red text would be reporting the
+      // console as broken when it is working exactly as designed.
+      const needsKey = res.status === 401 || res.status === 403;
+      const detail = needsKey
+        ? "Paste an admin key in the header to run this - it is kept in this browser only."
         : "HTTP " + res.status;
-      $("verdict").replaceChildren(el("div", "err", detail));
+      $("verdict").replaceChildren(el("div", needsKey ? "hint" : "err", detail));
       return;
     }
 
