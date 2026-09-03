@@ -57,6 +57,19 @@ curl -X POST -H "authorization: Bearer $PW_ADMIN_KEY" \
      -d '{"messages":[...]}'
 ```
 
+Both of those have a page in front of them, which is usually the faster way
+to do this stage: `/dashboard` for where risk is landing relative to the
+thresholds and which rules are firing, `/playground` for replaying a
+candidate change and seeing which layer reacted. Paste an admin key into the
+header — it is kept in that browser and sent only to `/admin`.
+
+The pages themselves are static HTML reachable without a key, because they
+carry no data. If you would rather not serve them at all:
+
+```bash
+PW_UI_ENABLED=false
+```
+
 ### 3. Label provenance
 
 The single highest-value change on the application side. PromptWall infers

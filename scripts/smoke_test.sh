@@ -46,6 +46,20 @@ check "metrics"   200 "$(status "${BASE_URL}/metrics")"
 
 echo
 echo "authentication"
+# The console shells are deliberately reachable without a key -- they are
+# static HTML and carry no data. What they display is not: /admin/summary
+# backs the dashboard and must still refuse an anonymous caller. Checked here
+# rather than only in the test suite because this is the gate that runs
+# against the thing actually deployed, where a misconfigured proxy or an
+# ingress rewriting paths could undo the split.
+ui_code="$(status "${BASE_URL}/dashboard")"
+if [[ "${ui_code}" == "404" ]]; then
+  printf '  SKIP  console (disabled by PW_UI_ENABLED)\n'
+else
+  check "console page is public"  200 "${ui_code}"
+  check "console data is not"     401 "$(status "${BASE_URL}/admin/summary")"
+fi
+
 check "rejects missing key" 401 "$(status -X POST "${BASE_URL}/v1/chat/completions" \
   -H 'content-type: application/json' \
   -d '{"messages":[{"role":"user","content":"hi"}]}')"

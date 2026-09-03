@@ -51,6 +51,10 @@ spec:
             - { name: PW_MODE,      value: "monitor" }
             - { name: PW_FAIL_MODE, value: "open" }
             - { name: PW_LOG_FORMAT, value: "json" }
+            # The console is static HTML and its data still needs an
+            # admin key, but a cluster that fronts this with an
+            # ingress may prefer not to serve the routes at all.
+            - { name: PW_UI_ENABLED, value: "true" }
             - { name: PW_POLICY_DIR, value: "/policy" }
             # More than one replica, so sessions must be shared or cross-turn
             # detection degrades silently.
