@@ -106,7 +106,15 @@ function headers() {
 async function api(path, tolerate = []) {
   const res = await fetch(path, { headers: headers() });
   if (!res.ok && !tolerate.includes(res.status)) {
-    const err = new Error("HTTP " + res.status);
+    // The gateway's errors carry a usable sentence; "HTTP 500" does not.
+    let detail = "HTTP " + res.status;
+    try {
+      const body = await res.json();
+      if (body && body.error && body.error.message) detail = body.error.message;
+    } catch (ignored) {
+      // Not a JSON error body; the status line is all there is.
+    }
+    const err = new Error(detail);
     err.status = res.status;
     throw err;
   }
