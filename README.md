@@ -122,7 +122,8 @@ does. L4 escalates it to require explicit confirmation before the mail can
 be sent, which is the control that actually applies.
 
 **And the number that matters more:** under an adaptive attacker with a
-12-mutation budget, **roughly 51% of attacks eventually evade detection.**
+12-mutation budget, **about 52% of attacks eventually evade detection** —
+mean over five seeds, sd 1.8 points.
 
 Both are true. The second is the one to plan around — and the reason the
 guarantee sits in L4, which none of those mutations affect, because none of

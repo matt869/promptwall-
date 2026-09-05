@@ -15,7 +15,7 @@ advertising. Everything below is reproducible from the repository.
 
 | Gap | Severity | Status |
 |---|---|---|
-| ~51% adaptive evasion of *detection* | High | By design; L4 is the control |
+| ~52% adaptive evasion of *detection* | High | By design; L4 is the control |
 | Multi-turn crescendo on a flat ladder | High | Improved; the flat case remains |
 | Direct tool-abuse detection, 0.90 | Medium | Remainder is deliberate — L4 handles it |
 | Quoted-attack ambiguity | Medium | Mitigated, residual accepted |
@@ -52,11 +52,25 @@ signal in a flat line. The corpus ladders score something by the second turn;
 a more patient attacker need not. Modelling the delta in what is being asked
 for, rather than the risk of each ask, is what would help. Not implemented.
 
-## 2. Adaptive evasion (~51%)
+## 2. Adaptive evasion (~52%)
 
 Given twelve mutations against a static defence, roughly half of attacks
 eventually score below threshold. Operators that work: base64 wrapping,
 padding with benign text, spacing, case noise, quote framing.
+
+The rate is a mean over five seeds because a single seed is not the number.
+The search is a greedy hill climb, so a seed samples one path through the
+mutation space rather than sampling the defence; run to run it moves a couple
+of points, and across arbitrary seeds it has moved six. That is the same size
+as the effect most policy changes are trying to demonstrate, which is a
+measurement problem before it is a security one. `--repeats` exists for this
+reason and defaults to five.
+
+The consequence is worth stating plainly: **a change can be strictly stronger
+on every individual input and still show a worse headline.** That happened
+here. Tightening the quoted-context discount (section 5) raised the score of
+73 inputs and lowered none, and the first single-seed run afterwards reported
+evasion going *up*. What actually changed was the path the search took.
 
 **This is expected and it is the reason for the architecture.** Detection is
 an arms race with an attacker who iterates offline and gets unlimited
@@ -71,9 +85,8 @@ still refuses `send_email`. You can watch this directly:
 python bench/harness/runner.py --defences "promptwall[l0_normalize,l4_tool_gate]"
 ```
 
-**Caveat on the number.** The search is stochastic (±3 points run to run),
-and operator attribution credits the *last* mutation in a chain, overstating
-its individual role.
+**Caveat on attribution.** Operator credit goes to the *last* mutation in a
+chain, which overstates its individual role — the earlier ones set it up.
 
 ## 3. Direct tool abuse (recall 0.90)
 
@@ -133,13 +146,31 @@ L1 applies a quoted-context discount, **scoped to `USER` trust and above**.
 For retrieved content there is no discount at all, because an attacker would
 simply add quotation marks.
 
-**Residual risk, accepted knowingly.** A user *can* buy a discount by
-quote-framing their own attack — the adaptive attacker does exactly this, and
-it landed several evasions. Retention was raised from 0.2 to 0.35 in
-response. Structurally, "Translate this: <payload>" is identical whether a
-student or an attacker wrote it, so no pattern work separates them. Quote
-framing also degrades the attack itself, since a model asked to translate an
-injection usually translates it.
+**The discount now decays as corroboration accumulates.** Retention is
+full strength for one quoted rule and reaches nothing at three.
+
+The earlier note here said no pattern work could separate "Translate this:
+<payload>" written by a student from the same sentence written by an
+attacker, and that is still true of the *wording*. It is not true of what the
+quoting is being asked to excuse. Every hard negative in the corpus quotes
+exactly one suspicious phrase. The quote-framed attacks carry two or three:
+an override phrase, a system-prompt request and a persona jailbreak inside
+one quoted span is not a translation exercise that happened to collect three
+unrelated attacks. Quoting explains a phrase; it does not explain a pile.
+
+Measured against the operator it targets, with the search restricted to
+quote framing alone so there is no path noise: **evasion 44.3% to 20.8%**.
+Against the full operator set the headline barely moves, because the attacker
+simply substitutes base64, spacing and padding instead — which is the arms
+race working as described, not the change failing.
+
+**Residual risk, still accepted knowingly.** A single quoted phrase still
+buys the full discount, deliberately: that is the case the hard negatives are
+made of. An attacker who quotes exactly one signature is therefore still
+discounted, and "Reveal your system prompt" quoted alone remains
+indistinguishable from someone asking about it. Quote framing also degrades
+the attack itself, since a model asked to translate an injection usually
+translates it.
 
 **The discount was also applying where it made no sense.** It matches a
 *phrasing* being mentioned rather than used, which is a coherent idea for
@@ -193,6 +224,7 @@ Found by the project's own tooling, which is the argument for having it:
 | `l6.prior_attempts` called a family a "repeat" the first time it appeared, because the sticky set was compared after the current turn was folded into it | a test asserting the *un*related case |
 | Findings only recorded which rendering matched when a rule hit twice, so L1's cross-rendering corroboration read a mostly-absent field | writing the corroboration test |
 | Five new signatures blocked ordinary traffic in draft — a DBA's `DROP TABLE` question, a `.pub` key in a runbook, `open('../../.env')` in a CI question, a mail-the-transcript request, and asking what `169.254.169.254` is | probing each new rule against benign traffic before trusting the corpus |
+| The adaptive evasion rate was being reported from a single seed with a run-to-run spread of several points, making it useless for judging the changes it was being used to judge | a strictly-stronger change appearing to regress it |
 
 ## Reporting a gap
 

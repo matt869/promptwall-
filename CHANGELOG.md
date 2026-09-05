@@ -35,6 +35,22 @@ Notable changes to PromptWall. Format loosely follows
 
 ### Changed
 
+- **L1's quoted-context discount now decays as corroboration accumulates.**
+  It was a flat 0.35 whether the quoted span held one suspicious phrase or
+  five. Retention is unchanged for one rule — every hard negative in the
+  corpus quotes exactly one, and they are what the discount exists for — and
+  reaches nothing at three, because a translation exercise containing an
+  override phrase, a system-prompt request and a persona jailbreak is not a
+  translation exercise. Restricted to the quote-framing operator so there is
+  no search noise, adaptive evasion falls **44.3% → 20.8%**. Against the full
+  operator set the headline barely moves: the attacker substitutes base64,
+  spacing and padding instead.
+- `bench/adaptive_attacker.py` averages five seeds by default (`--repeats`)
+  and reports mean, standard deviation and range. A single run was being
+  quoted as the evasion rate despite a run-to-run spread of several points —
+  the same size as the effect a policy change is usually trying to show. The
+  change above raised the score of 73 inputs and lowered none, and the first
+  single-seed run after it reported evasion going *up*.
 - `io.ignore_previous` no longer fires on the bare "disregard the above"
   form unless it ends the clause. It was matching "please disregard the above
   draft and use the second one instead" — an ordinary editing request, and

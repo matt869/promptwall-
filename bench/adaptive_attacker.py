@@ -24,6 +24,7 @@ import base64
 import codecs
 import json
 import random
+import statistics
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -284,19 +285,44 @@ def summarize(attempts: list[Attempt]) -> dict[str, Any]:
     }
 
 
+def spread(runs: list[dict[str, Any]]) -> dict[str, Any]:
+    """Evasion across independent seeds.
+
+    Reporting one run as *the* evasion rate overstates its precision badly.
+    The search is a greedy hill climb, so a seed does not sample the defence
+    -- it samples one path through the mutation space, and paths differ. On
+    this corpus the run-to-run standard deviation is several points, which is
+    the same size as the effect a policy change is usually trying to show. A
+    defence change evaluated on one seed can therefore look like a regression
+    while being strictly stronger on every individual input.
+    """
+    rates = [r["evasion_rate"] for r in runs]
+    return {
+        "runs": len(rates),
+        "evasion_rates": rates,
+        "mean": round(statistics.mean(rates), 4),
+        "stdev": round(statistics.pstdev(rates), 4) if len(rates) > 1 else 0.0,
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Measure how well PromptWall holds up against adapting attacks."
     )
     parser.add_argument("--budget", type=int, default=12, help="mutations per attack")
     parser.add_argument("--seed", type=int, default=20260826)
+    parser.add_argument(
+        "--repeats",
+        type=int,
+        default=5,
+        help="independent seeds to average over (1 = a single run)",
+    )
     parser.add_argument("--limit", type=int, default=0, help="cap records (0 = all)")
     parser.add_argument("--splits", default="attacks", help="corpus splits to attack")
     parser.add_argument("--operators", default="", help="comma-separated subset")
     parser.add_argument("--out", default="")
     args = parser.parse_args(argv)
 
-    rng = random.Random(args.seed)
     corpus = [
         r
         for r in load_corpus(splits=[s for s in args.splits.split(",") if s])
@@ -315,20 +341,44 @@ def main(argv: list[str] | None = None) -> int:
 
     defence = PromptWallDefence()
     defence.setup()
+    runs: list[dict[str, Any]] = []
     try:
-        attempts = [
-            attack(defence, record, rng, budget=args.budget, operators=operators)
-            for record in corpus
-        ]
+        for index in range(max(1, args.repeats)):
+            rng = random.Random(args.seed + index)
+            runs.append(
+                summarize(
+                    [
+                        attack(defence, record, rng, budget=args.budget, operators=operators)
+                        for record in corpus
+                    ]
+                )
+            )
     finally:
         defence.teardown()
 
-    summary = summarize(attempts)
+    # The first run is reported in full so the operator and family breakdowns
+    # stay concrete, but the headline is the spread. See spread() for why.
+    summary = runs[0]
+    summary["spread"] = spread(runs)
+
     print(f"attacked {summary['attempts']} records with a budget of {args.budget} mutations")
-    print(
-        f"evaded: {summary['evaded']} ({summary['evasion_rate']:.1%}), "
-        f"mean rounds to evade: {summary['mean_rounds_to_evade']}"
-    )
+    if len(runs) > 1:
+        rates = summary["spread"]["evasion_rates"]
+        print(
+            f"evaded: {summary['spread']['mean']:.1%} mean over {len(runs)} seeds "
+            f"(sd {summary['spread']['stdev']:.1%}, "
+            f"range {min(rates):.1%}-{max(rates):.1%})"
+        )
+        print(
+            "  a single seed is not the number: the search is a greedy hill "
+            "climb, so one run samples one path through the mutation space."
+        )
+    else:
+        print(
+            f"evaded: {summary['evaded']} ({summary['evasion_rate']:.1%}), "
+            f"mean rounds to evade: {summary['mean_rounds_to_evade']}"
+        )
+    print(f"\nbreakdowns below are from seed {args.seed} alone:")
     print("\nwhich operator landed the evasion:")
     for name, count in summary["by_operator"].items():
         print(f"  {name:16} {count}")

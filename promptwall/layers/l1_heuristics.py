@@ -53,6 +53,27 @@ _CLOSE_QUOTES = ("'", '"', "`", "»", "”", "’")
 _QUOTED_RETENTION = 0.35
 
 
+def _retention_for(distinct_rules: int) -> float:
+    """How much weight a quoted match keeps, given how much else is quoted.
+
+    Quoting explains *a* suspicious phrase. It does not explain a pile of
+    them. "Translate this sentence: '<override phrase>'" is a real request a
+    real person makes; the same sentence whose quoted span also contains a
+    system-prompt request and a persona jailbreak is not a translation
+    exercise that happened to collect three unrelated attacks.
+
+    So the discount is full strength for one rule and decays as corroboration
+    accumulates, reaching nothing at three. One is deliberately unchanged --
+    every hard negative in the corpus quotes exactly one phrase, and they are
+    the cases this discount exists to protect.
+
+    This is the structural signal the earlier note said pattern work could not
+    provide. It is not about the wording, which really is identical either
+    way; it is about how much the quoting is being asked to excuse.
+    """
+    return min(1.0, _QUOTED_RETENTION * max(1, distinct_rules))
+
+
 def _looks_quoted(text: str, start: int, end: int) -> bool:
     """Is this match being *mentioned* rather than *used*?"""
     before = text[max(0, start - 3) : start].strip()
@@ -73,6 +94,7 @@ def _discount_quoted(findings: list[Finding], text: str) -> list[Finding]:
     its full weight, and the taint and tool-gate layers remain the real
     control regardless.
     """
+    quoted: list[Finding] = []
     for finding in findings:
         if finding.trust < TrustLevel.USER or finding.start < 0:
             continue
@@ -84,8 +106,18 @@ def _discount_quoted(findings: list[Finding], text: str) -> list[Finding]:
         if finding.meta.get("quotable") is False:
             continue
         if _looks_quoted(text, finding.start, finding.end):
-            finding.weight = round((finding.weight or 0.0) * _QUOTED_RETENTION, 6)
+            quoted.append(finding)
+
+    retention = _retention_for(len({f.rule_id for f in quoted}))
+    for finding in quoted:
+        if retention < 1.0:
+            finding.weight = round((finding.weight or 0.0) * retention, 6)
             finding.meta = {**finding.meta, "quoted_context": True}
+        else:
+            # Kept at full weight, but say why: an operator reading the audit
+            # record should be able to see the discount was considered and
+            # declined rather than never applied.
+            finding.meta = {**finding.meta, "quoted_corroborated": True}
     return findings
 
 
